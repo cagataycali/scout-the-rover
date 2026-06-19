@@ -9,6 +9,7 @@
 [![sdk](https://img.shields.io/badge/sdk-earth--rovers--sdk-00ff88?style=flat-square)](https://github.com/cagataycali/earth-rovers-sdk)
 [![tools](https://img.shields.io/badge/tools-14-ff2a6d?style=flat-square)](#-the-toolbelt)
 [![strands](https://img.shields.io/badge/built_with-strands_agents-b967ff?style=flat-square)](https://strandsagents.com)
+[![dataset](https://img.shields.io/badge/🤗_dataset-scout--earthrover--ecot-ffce1c?style=flat-square)](https://huggingface.co/datasets/cagataydev/scout-earthrover-ecot)
 [![license](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](#-license)
 
 </div>
@@ -242,6 +243,25 @@ or any static host — just point the WS URL at your running `dashboard_server.p
 ---
 
 ## 🎬 data collection (LeRobot v3 datasets)
+
+scout doesn't just drive — it **remembers**. Three personas record concurrently
+into one daily corpus, and every reasoning trace (system prompt → tool calls →
+results) is bound to the video spine as an **Embodied Chain-of-Thought (ECoT)**
+sidecar, then exported to 🤗
+**[huggingface.co/datasets/cagataydev/scout-earthrover-ecot](https://huggingface.co/datasets/cagataydev/scout-earthrover-ecot)**.
+
+### 📊 a day in scout's life — `2026-06-19`
+
+| persona | episodes | frames | ~duration | what it was doing |
+|---|--:|--:|--:|---|
+| 🐢 **thinker** | 28 | 10,080 | ~16.8 min | `[thinker] autonomous exploration` |
+| 📱 **telegram** | 1 | 1,309 | ~2.2 min | `@cagataycali: Can you come to bedroom?` |
+| 🧠 **main** | 1 | 373 | ~0.6 min | `perform a 360, then move ahead 5 ft zig-zag` |
+| **total** | **30** | **11,762** | **~19.6 min** | _front+rear video · state(16D) · action(3D) · audio · reasoning_ |
+
+_@ 10 FPS · LeRobot v3 · per-agent datasets merge into one timeline via_
+`python -m tools.merge_datasets`. _The VLA spine (vision→action) and the ECoT
+view (reasoning→action) materialize from the same canonical store._
 
 Every `start_recording` → `stop_recording` cycle produces ONE episode in
 `./datasets/scout__earth-rover-mini/` — LeRobot v3 format (parquet rows, MP4
