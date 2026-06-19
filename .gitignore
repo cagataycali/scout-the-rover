@@ -1,0 +1,28 @@
+.DS_Store
+.env
+*.bak
+__pycache__/
+*.pyc
+.venv/
+venv/
+captures/
+screenshots/
+*.creds.json
+.welcome
+earth-rovers-sdk/
+telegram_events/
+whatsapp_events/
+robot.py
+*.log
+datasets/*
+# Persistent memory — runtime data, not source
+.scout_memory/
+.memory/
+.telegram_offset
+navigation-scaling/
+
+# Personal scratch notes (may contain creds)
+notes.md
+# Model weights (auto-downloaded)
+*.pt
+yolov8n.pt

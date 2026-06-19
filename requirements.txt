@@ -1,0 +1,10 @@
+strands-agents>=1.0.0
+requests>=2.32
+python-dotenv>=1.0
+# Dataset recording (LeRobot v3 format)
+lerobot>=0.5.1
+numpy>=1.24
+opencv-python>=4.8
+# PS4 / generic SDL2 joystick teleop
+pygame>=2.5
+uvicorn>=0.30

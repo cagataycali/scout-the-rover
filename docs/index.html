@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#0a0a0f" />
+<title>scout · Earth Rover Mini</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="aurora"></div>
+
+<!-- top status bar -->
+<header class="topbar glass">
+  <div class="brand">
+    <span class="logo">🛞</span>
+    <div class="brand-txt">
+      <strong>scout</strong>
+      <small id="connState">connecting…</small>
+    </div>
+  </div>
+  <div class="stat-pills">
+    <div class="pill" id="pillBattery"><span class="pi">🔋</span><span class="pv" id="vBattery">--</span></div>
+    <div class="pill" id="pillSignal"><span class="pi">📶</span><span class="pv" id="vSignal">--</span></div>
+    <div class="pill" id="pillGps"><span class="pi">📍</span><span class="pv" id="vGps">--</span></div>
+  </div>
+  <a class="icon-btn" href="/replay" aria-label="replay" title="recordings replay" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">🎞️</a>
+  <button class="icon-btn" id="btnSettings" aria-label="settings">⚙️</button>
+</header>
+
+<main class="stage">
+  <!-- camera viewport -->
+  <section class="camera-wrap glass">
+    <img id="camFront" class="cam" alt="front camera" />
+    <img id="camRear" class="cam cam-pip hidden" alt="rear camera" />
+    <div class="cam-overlay">
+      <div class="cam-tag" id="camTag">FRONT</div>
+      <div class="cam-actions">
+        <button class="chip" id="btnSwap">⇆ rear</button>
+        <button class="chip" id="btnLamp">💡 lamp</button>
+        <button class="chip" id="btnSnap">📸</button>
+      </div>
+    </div>
+    <div class="hud" id="hud">
+      <span id="hudSpeed">0.0 m/s</span>
+      <span id="hudOrient">0°</span>
+    </div>
+  </section>
+
+  <!-- chat / agent stream -->
+  <section class="chat glass" id="chatPane">
+    <div class="chat-log" id="chatLog">
+      <div class="msg sys">👋 I'm <b>scout</b>. Tell me what to do — “look around”, “drive to the tree”, or just chat.</div>
+    </div>
+  </section>
+</main>
+
+<!-- drive joystick (mobile) -->
+<div class="joystick-dock glass" id="joyDock">
+  <div class="joystick" id="joystick">
+    <div class="joy-knob" id="joyKnob"></div>
+  </div>
+  <div class="joy-side">
+    <button class="estop" id="btnEstop">STOP</button>
+    <button class="chip" id="btnJoyHide">▾</button>
+  </div>
+</div>
+
+<!-- bottom command bar -->
+<footer class="cmdbar glass">
+  <button class="icon-btn" id="btnJoy" aria-label="joystick">🕹️</button>
+  <button class="icon-btn" id="btnMic" aria-label="voice">🎙️</button>
+  <input id="cmdInput" type="text" placeholder="message scout…" autocomplete="off" />
+  <button class="send-btn" id="btnSend" aria-label="send">↑</button>
+</footer>
+
+<!-- settings drawer -->
+<div class="drawer-scrim hidden" id="drawerScrim"></div>
+<aside class="drawer glass hidden" id="drawer">
+  <div class="drawer-head">
+    <h2>⚙️ Configuration</h2>
+    <button class="icon-btn" id="btnCloseDrawer">✕</button>
+  </div>
+
+  <div class="drawer-body">
+    <label class="field">
+      <span>WebSocket URL</span>
+      <input id="cfgWsUrl" type="text" placeholder="ws://localhost:8080" />
+      <small>Where the dashboard connects. Defaults to this page's origin.</small>
+    </label>
+
+    <label class="field">
+      <span>Model ID</span>
+      <input id="cfgModel" type="text" placeholder="global.anthropic.claude-sonnet-4-5-…" />
+    </label>
+
+    <label class="field">
+      <span>System prompt</span>
+      <textarea id="cfgPrompt" rows="8" placeholder="scout persona…"></textarea>
+      <small><button class="link-btn" id="btnResetPrompt">reset to default</button></small>
+    </label>
+
+    <div class="field-row">
+      <label class="field">
+        <span>Voice provider</span>
+        <select id="cfgVoiceProvider">
+          <option value="openai">OpenAI Realtime</option>
+          <option value="nova_sonic">Nova Sonic</option>
+          <option value="gemini">Gemini Live</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Voice</span>
+        <input id="cfgVoiceName" type="text" placeholder="marin / matthew / Kore" />
+      </label>
+    </div>
+
+    <div class="env-section">
+      <h3>🔐 Credentials & env</h3>
+      <small class="env-hint">Masked values are hidden — leave them to keep, edit to change.</small>
+      <div id="envList" class="env-list"></div>
+      <div class="env-add">
+        <input id="envNewKey" placeholder="KEY" />
+        <input id="envNewVal" placeholder="value" />
+        <button class="chip" id="btnEnvAdd">+ add</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="drawer-foot">
+    <button class="btn-ghost" id="btnCloseDrawer2">Cancel</button>
+    <button class="btn-primary" id="btnSaveCfg">Save & apply</button>
+  </div>
+</aside>
+
+<div class="toast-host" id="toastHost"></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

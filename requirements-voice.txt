@@ -1,0 +1,8 @@
+# Extras for the bidirectional voice agent (voice_agent.py)
+-r requirements.txt
+pyaudio>=0.2.14
+strands-agents[bidi-all]
+
+# echo cancellation / noise suppression for rover voice (model must not hear itself)
+pywebrtc-audio>=0.1.0
+numpy>=1.24

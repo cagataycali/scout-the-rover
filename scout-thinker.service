@@ -1,0 +1,20 @@
+[Unit]
+Description=scout — slow-thinker background reflection loop (every 60s)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cagatay
+Group=cagatay
+WorkingDirectory=/home/cagatay/earth-rover-mini
+EnvironmentFile=-/home/cagatay/earth-rover-mini/.env
+Environment=THINKER_INTERVAL=60
+ExecStart=/home/cagatay/earth-rover-mini/.venv/bin/python /home/cagatay/earth-rover-mini/thinker_loop.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

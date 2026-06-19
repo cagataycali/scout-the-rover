@@ -1,0 +1,19 @@
+[Unit]
+Description=scout — Telegram listener (Earth Rover Mini)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cagatay
+Group=cagatay
+WorkingDirectory=/home/cagatay/earth-rover-mini
+EnvironmentFile=-/home/cagatay/earth-rover-mini/.env
+ExecStart=/home/cagatay/earth-rover-mini/.venv/bin/python /home/cagatay/earth-rover-mini/telegram_listener.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
