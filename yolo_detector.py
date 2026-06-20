@@ -68,6 +68,36 @@ def _recorder_status() -> Optional[dict]:
         return None
 
 
+
+def _parse_locate_output(text: str, W: int, H: int) -> list:
+    """Parse LocateAnything-3B output.
+
+    Format: <ref>LABEL</ref><box><x1><y1><x2><y2></box>  (coords quantized 0-1000),
+    with <box>None</box> meaning 'not present'. Multiple boxes per ref allowed.
+    """
+    import re
+    dets = []
+    # Each <ref>..</ref> followed by one or more <box>..</box>
+    for rm in re.finditer(r"<ref>(.*?)</ref>\s*((?:<box>.*?</box>\s*)+)", text, re.DOTALL):
+        label = rm.group(1).strip() or "object"
+        boxes_blob = rm.group(2)
+        for bm in re.finditer(r"<box>(.*?)</box>", boxes_blob, re.DOTALL):
+            inner = bm.group(1)
+            if "none" in inner.lower():
+                continue
+            nums = re.findall(r"-?\d+\.?\d*", inner)
+            if len(nums) < 4:
+                continue
+            x1, y1, x2, y2 = (float(n) for n in nums[:4])
+            # coords are quantized to 0-1000 → rescale to pixels
+            if max(x1, y1, x2, y2) <= 1000:
+                x1, x2 = x1 / 1000.0 * W, x2 / 1000.0 * W
+                y1, y2 = y1 / 1000.0 * H, y2 / 1000.0 * H
+            dets.append({"cls": label, "conf": 1.0,
+                         "xyxy": [round(x1, 1), round(y1, 1), round(x2, 1), round(y2, 1)]})
+    return dets
+
+
 class YoloDetector:
     def __init__(self) -> None:
         self.model = None
@@ -101,51 +131,55 @@ class YoloDetector:
 
     # ── LocateAnything-3B backend (open-vocab, language-prompted grounding) ──
     def _load_locate(self) -> bool:
+        """Load LocateAnything-3B via its official batch_utils runtime.
+
+        The model ships custom inference code (batch_utils/) in its HF snapshot;
+        we add that dir to sys.path and call generate_batch_hybrid().
+        Query format uses '</c>' between categories, e.g. "person</c>chair</c>door".
+        """
         try:
-            import torch
-            from transformers import AutoModel, AutoProcessor, AutoModelForCausalLM
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            dtype = torch.bfloat16 if self.device == "cuda" else torch.float32
-            # LocateAnything ships as a custom architecture → trust_remote_code.
-            try:
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    LOCATE_MODEL, torch_dtype=dtype, trust_remote_code=True,
-                    device_map=self.device)
-            except Exception:
-                self.model = AutoModel.from_pretrained(
-                    LOCATE_MODEL, torch_dtype=dtype, trust_remote_code=True,
-                    device_map=self.device)
-            self.processor = AutoProcessor.from_pretrained(
-                LOCATE_MODEL, trust_remote_code=True)
+            import os, sys
+            from huggingface_hub import snapshot_download
+            snap = snapshot_download(LOCATE_MODEL,
+                                     ignore_patterns=["assets/*", "*.mp4", "training_args.bin"])
+            if snap not in sys.path:
+                sys.path.insert(0, snap)
+            os.environ.setdefault("LA_FLASH_MODEL", snap)
+            os.environ.setdefault("LA_FLASH_ATTN", os.getenv("LOCATE_ATTN", "sdpa"))
+            from batch_utils import generate_batch_hybrid, load as _la_load
+            from batch_utils.hybrid_runtime import load_pil  # noqa: F401 (api parity)
+            _la_load()
+            self._la_generate = generate_batch_hybrid
             self.backend_name = "locate"
+            import torch
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            print(f"[{_now()}] 👁️ LocateAnything-3B loaded (official batch_utils, {self.device})", flush=True)
             return True
         except Exception as e:
             print(f"[{_now()}] 👁️ LocateAnything load failed ({e}); falling back to YOLO", flush=True)
             return False
 
+    def _locate_query(self) -> str:
+        # accept either '. ' separated or '</c>' separated env; normalize to '</c>'
+        q = LOCATE_QUERY
+        if "</c>" in q:
+            return q
+        cats = [c.strip().rstrip(".").strip() for c in q.replace(".", ",").split(",")]
+        cats = [c for c in cats if c]
+        return "</c>".join(cats) if cats else "object"
+
     def _predict_locate(self, img) -> list:
-        """Run LocateAnything-3B grounding for LOCATE_QUERY. Returns dets list."""
+        """Run LocateAnything-3B grounding for the query. Returns dets list."""
         import re
         try:
             from PIL import Image
-            import numpy as _np
             pil = Image.fromarray(img)
-            prompt = f"Detect: {LOCATE_QUERY}"
-            inputs = self.processor(images=pil, text=prompt, return_tensors="pt").to(self.device)
-            out = self.model.generate(**inputs, max_new_tokens=1024)
-            text = self.processor.batch_decode(out, skip_special_tokens=False)[0]
-            # Parse <box> x1, y1, x2, y2 </box> (coords may be normalized 0-1000)
+            query = self._locate_query()
+            texts = self._la_generate([(pil, query)], max_new_tokens=1024,
+                                      temperature=0.0)
+            text = texts[0] if texts else ""
             H, W = img.shape[:2]
-            dets = []
-            for m in re.finditer(r"<box>\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)\s*</box>", text):
-                x1, y1, x2, y2 = (float(v) for v in m.groups())
-                # if quantized to 0-1000, rescale to pixels
-                if max(x1, y1, x2, y2) <= 1000 and max(x1,y1,x2,y2) > 1.5:
-                    x1, x2 = x1/1000*W, x2/1000*W
-                    y1, y2 = y1/1000*H, y2/1000*H
-                dets.append({"cls": "object", "conf": 1.0,
-                             "xyxy": [round(x1,1), round(y1,1), round(x2,1), round(y2,1)]})
-            return dets
+            return _parse_locate_output(text, W, H)
         except Exception as e:
             return []
 

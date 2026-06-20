@@ -81,6 +81,8 @@ RUN python3 -m pip install --upgrade pip \
     && (pip install faster-whisper webrtcvad || pip install faster-whisper || echo "listener stt extras skipped") \
     # perception subscribers: YOLO (ultralytics) + clip writing (imageio).
     && (pip install ultralytics imageio imageio-ffmpeg || echo "perception extras skipped") \
+    # LocateAnything-3B custom modeling deps (open-vocab grounding backend).
+    && (pip install decord lmdb || echo "locate extras skipped") \
     # 🌌 Cosmos world-model tools (optional; base image already has CUDA/torch/vllm).
     && ( [ "${INSTALL_COSMOS:-1}" = "1" ] && (pip install strands-cosmos || echo "cosmos extras skipped") || echo "cosmos install disabled" ) \
     # 📦 lerobot for dataset recording — --no-deps so it reuses the base torch,
