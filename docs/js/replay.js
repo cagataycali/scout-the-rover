@@ -84,7 +84,51 @@ function updateUI() {
   const frame = Math.round(t * FPS);
   $("frameLbl").textContent = `frame ${frame}`;
   highlightEvents(frame);
+  renderTelemetry(frame);
   drawPlayhead(t / (dur || 1));
+}
+
+// ── live telemetry strip (full 18-dim state at the current frame) ──
+// Picks the most context-rich channels and formats them with units. The raw
+// per-frame vectors come from EPDATA.series.state (keyed by state_names).
+const TELEM_VIEW = [
+  { k: "battery.level",  label: "battery", fmt: v => `${Math.round(v)}<small>%</small>`, warn: v => v < 20 },
+  { k: "voltage",        label: "voltage", fmt: v => `${v.toFixed(1)}<small>V</small>` },
+  { k: "current",        label: "current", fmt: v => `${Math.round(v)}<small>mA</small>` },
+  { k: "orientation.deg",label: "heading", fmt: v => `${Math.round(v)}<small>°</small>` },
+  { k: "signal.level",   label: "signal",  fmt: v => `${Math.round(v)}<small>/4</small>` },
+  { k: "gps.signal",     label: "gps",     fmt: v => v > 0 ? `fix <small>${Math.round(v)}</small>` : "no fix", warn: v => v <= 0 },
+  { k: "linear.vel",     label: "lin.vel", fmt: v => v.toFixed(2) },
+  { k: "angular.vel",    label: "ang.vel", fmt: v => v.toFixed(2) },
+  { k: "vibration",      label: "vibration", fmt: v => v.toFixed(2) },
+  { k: "imu.accel.x",    label: "accel x", fmt: v => v.toFixed(2) },
+  { k: "imu.accel.y",    label: "accel y", fmt: v => v.toFixed(2) },
+  { k: "imu.accel.z",    label: "accel z", fmt: v => v.toFixed(2) },
+];
+
+function renderTelemetry(frame) {
+  const el = $("telem"); if (!el || !EPDATA) return;
+  const st = EPDATA.series && EPDATA.series.state;
+  const fidx = EPDATA.series && EPDATA.series.frame_index;
+  if (!st || !fidx || !fidx.length) { el.innerHTML = ""; return; }
+  // nearest sample index for this frame
+  let i = fidx.indexOf(frame);
+  if (i < 0) { // fall back to closest
+    let best = 0, bd = Infinity;
+    for (let j = 0; j < fidx.length; j++) { const d = Math.abs(fidx[j] - frame); if (d < bd) { bd = d; best = j; } }
+    i = best;
+  }
+  el.innerHTML = "";
+  TELEM_VIEW.forEach(t => {
+    const col = st[t.k]; if (!col) return;
+    const v = col[i];
+    if (v == null || Number.isNaN(v)) return;
+    const warn = t.warn ? t.warn(v) : false;
+    const div = document.createElement("div");
+    div.className = "tcell" + (warn ? " warn" : "");
+    div.innerHTML = `<div class="tk">${t.label}</div><div class="tv">${t.fmt(v)}</div>`;
+    el.appendChild(div);
+  });
 }
 
 // ── events ──

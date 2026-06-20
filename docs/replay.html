@@ -41,6 +41,12 @@
   .ev-user_input{border-left-color:#c9f}   .b-user_input{background:#3a1d4a}
   .ev-assistant_end{border-left-color:#aaa}.b-assistant_end{background:#333}
   a.back{opacity:.7;text-decoration:none;color:#9cf;font-size:13px}
+  .telem{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px;margin-top:10px}
+  .tcell{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:9px;padding:6px 8px}
+  .tcell .tk{font-size:10px;opacity:.55;text-transform:uppercase;letter-spacing:.3px}
+  .tcell .tv{font-size:14px;font-variant-numeric:tabular-nums;margin-top:2px}
+  .tcell.warn{border-color:rgba(255,120,120,.5);background:rgba(255,80,80,.10)}
+  .tcell .tv small{opacity:.5;font-size:10px;margin-left:2px}
 </style>
 </head>
 <body>
@@ -86,6 +92,7 @@
         <div style="font-size:11px;opacity:.55;margin-top:4px">
           ▮ linear &nbsp; ▮ angular &nbsp; ▮ speed(state) &nbsp;— click graph or events to seek
         </div>
+        <div class="telem" id="telem"></div>
       </div>
     </div>
 

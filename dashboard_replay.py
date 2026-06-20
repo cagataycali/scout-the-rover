@@ -198,6 +198,15 @@ def _reasoning_for_episode(ds_id: str, episode_index: int, fps: float) -> List[D
 
 
 # ── per-frame action/state series (for the scrubber graph) ───────────────────
+def _state_names(ds_id: str) -> List[str]:
+    """Ordered names of the observation.state vector from meta/info.json."""
+    try:
+        info = json.loads((_dataset_dir(ds_id) / "meta" / "info.json").read_text())
+        return list(info["features"]["observation.state"]["names"])
+    except Exception:
+        return []
+
+
 def _series(ds_id: str, episode_index: int) -> Dict[str, Any]:
     import pandas as pd
     d = _dataset_dir(ds_id)
@@ -221,12 +230,27 @@ def _series(ds_id: str, episode_index: int) -> Dict[str, Any]:
     action = [list(map(float, a)) for a in e["action"].tolist()] if "action" in e.columns else []
     # state[0] == linear.vel (earthrover_mini_plus aligned schema; was [8] pre-align)
     speed = []
+    # Full named telemetry: expose the WHOLE observation.state vector keyed by
+    # its names (battery, gps, imu, voltage, …) so the UI can render a live
+    # telemetry strip + extra graph channels, not just speed. Backward-compat:
+    # `speed` (state[0]) is still returned exactly as before.
+    names = _state_names(ds_id)
+    state_cols: Dict[str, List[float]] = {n: [] for n in names}
     if "observation.state" in e.columns:
         for s in e["observation.state"].tolist():
             try:
-                speed.append(float(s[0]))
+                vec = list(s)
+            except Exception:
+                vec = []
+            try:
+                speed.append(float(vec[0]))
             except Exception:
                 speed.append(0.0)
+            for i, n in enumerate(names):
+                try:
+                    state_cols[n].append(float(vec[i]))
+                except Exception:
+                    state_cols[n].append(None)
     age = []
     if "action_age" in e.columns:
         for a in e["action_age"].tolist():
@@ -239,6 +263,8 @@ def _series(ds_id: str, episode_index: int) -> Dict[str, Any]:
         "action": action,
         "speed": speed,
         "action_age": age,
+        "state_names": names,
+        "state": state_cols,
     }
 
 
