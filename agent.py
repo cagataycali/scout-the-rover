@@ -193,6 +193,19 @@ def spatial_block() -> str:
     return f"{ps}\n{mp}"
 
 
+def perception_block() -> str:
+    """Live object detections (YOLO or LocateAnything-3B) from the perception
+    subscriber, if it's running. Empty otherwise — never breaks the turn."""
+    try:
+        from yolo_detector import latest_context
+        ctx = latest_context()
+        if ctx:
+            return "## 👁️ LIVE PERCEPTION (object detector, this moment):\n" + ctx + "\n"
+    except Exception:
+        pass
+    return ""
+
+
 def live_camera_blocks(camera: str = "both") -> list:
     """Grab front+rear frames; return Strands content blocks.
 
@@ -381,7 +394,7 @@ def build_agent(extra_tools: Optional[list] = None) -> Agent:
     return Agent(
         tools=tools,
         system_prompt=(
-            f"{_memory.recall_block()}\n{live_state_block()}\n{spatial_block()}\n{BASE_PROMPT}\n"
+            f"{_memory.recall_block()}\n{live_state_block()}\n{spatial_block()}\n{perception_block()}\n{BASE_PROMPT}\n"
             f"{cosmos_block}\n{dataset_block}"
         ),
         hooks=[ReasoningLoggerHook(agent_id="main")],
@@ -394,7 +407,7 @@ def main() -> None:
     if len(sys.argv) > 1:
         # one-shot
         prompt = " ".join(sys.argv[1:])
-        agent.system_prompt = f"{_memory.recall_block()}\n{live_state_block()}\n{spatial_block()}\n{BASE_PROMPT}"
+        agent.system_prompt = f"{_memory.recall_block()}\n{live_state_block()}\n{spatial_block()}\n{perception_block()}\n{BASE_PROMPT}"
         _auto_recorder.begin_turn(prompt)
         _result = None
         try:
@@ -419,7 +432,7 @@ def main() -> None:
         if q.lower() in ("exit", "quit", "q"):
             break
         # Per-turn live state injection
-        agent.system_prompt = f"{_memory.recall_block()}\n{live_state_block()}\n{spatial_block()}\n{BASE_PROMPT}"
+        agent.system_prompt = f"{_memory.recall_block()}\n{live_state_block()}\n{spatial_block()}\n{perception_block()}\n{BASE_PROMPT}"
         _auto_recorder.begin_turn(q)
         _result = None
         try:

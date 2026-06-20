@@ -36,6 +36,13 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import requests
 
+try:
+    import sys as _sys, os as _os
+    _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+    import media_client as _mediahub
+except Exception:
+    _mediahub = None
+
 from ._rover_common import sdk_get, sdk_post
 
 logger = logging.getLogger(__name__)
@@ -890,20 +897,34 @@ class RecorderEngine:
         # Fire all 3 SDK requests in parallel — was 3x serial roundtrips
         # (~150-450ms total) on the WebRTC-backed Chrome SDK; now parallel
         # bounded by the slowest single response.
+        # Prefer the MediaHub fan-out (single drainer, time-aligned, no extra
+        # SDK round-trips); fall back to direct SDK if the hub isn't running.
         def _fetch_data():
             try:
+                if _mediahub:
+                    d = _mediahub.latest_data()
+                    if d:
+                        return d
                 return sdk_get("/data", timeout=3).json()
             except Exception:
                 return {}
 
         def _fetch_front():
             try:
+                if _mediahub:
+                    b = _mediahub.latest_frame_b64("front")
+                    if b:
+                        return b
                 return sdk_get("/v2/front", timeout=3).json().get("front_frame")
             except Exception:
                 return None
 
         def _fetch_rear():
             try:
+                if _mediahub:
+                    b = _mediahub.latest_frame_b64("rear")
+                    if b:
+                        return b
                 return sdk_get("/v2/rear", timeout=3).json().get("rear_frame")
             except Exception:
                 return None

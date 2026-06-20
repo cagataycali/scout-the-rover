@@ -122,7 +122,16 @@ thinker: venv ## start slow-thinker background loop (every 60s by default)
 listen: venv ## start the voice listener (drains rover mic → whisper → triggers agent)
 	@ROVER_AGENT_ID=listener $(PY) listener_loop.py
 
-.PHONY: listen merge
+media: venv ## start the MediaHub fan-out (single drainer → mic/front/rear/data subscribers)
+	@$(PY) media_hub.py
+
+cosmos-buffer: venv ## roll rover video into clips for Cosmos reasoning (needs media hub)
+	@MEDIA_HUB_URL=$${MEDIA_HUB_URL:-http://localhost:8090} $(PY) cosmos_buffer.py
+
+yolo: venv ## run YOLO detection on the video stream, annotate into dataset episodes
+	@MEDIA_HUB_URL=$${MEDIA_HUB_URL:-http://localhost:8090} $(PY) yolo_detector.py
+
+.PHONY: listen media cosmos-buffer yolo merge
 merge: venv ## merge per-agent datasets → one unified timeline (DATASET=<dir> or today)
 	@DS="$(DATASET)"; \
 	if [ -z "$$DS" ]; then DS="datasets/scout__earth-rover-mini-$$(date +%Y%m%d)"; fi; \

@@ -50,6 +50,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from agent import build_agent, build_turn_input, _auto_recorder  # reuse the main agent
+try:
+    import media_client as _mediahub
+except Exception:
+    _mediahub = None
 import memory as _memory
 from tools.voice_bridge import voice_say as _voice_say, push as _voice_push
 
@@ -298,41 +302,74 @@ def main() -> None:
         traceback.print_exc()
         sys.exit(1)
 
-    # Wait for SDK + rover audio track, then start mic
+    # Shared state for the VAD → transcribe → trigger pipeline.
+    seg = _Segmenter(MIC_RATE)
+    trig = {"last": 0.0}
+
+    def _on_pcm(rate: int, pcm: "np.ndarray") -> None:
+        if rate != seg.rate:
+            # rebuild segmenter for a new rate
+            new = _Segmenter(rate)
+            seg.__dict__.update(new.__dict__)
+        utterance = seg.feed(pcm)
+        if utterance is None:
+            return
+        dur = len(utterance) / rate
+        text = transcriber.transcribe(utterance, rate) if transcriber.backend else ""
+        if text:
+            print(f"[{_now()}] 👂 heard ({dur:.1f}s): {text!r}", flush=True)
+        if transcriber.backend and not _meaningful(text):
+            return
+        if (time.time() - trig["last"]) < COOLDOWN_SEC:
+            return
+        trig["last"] = time.time()
+        spoken = _strip_wake(text) if transcriber.backend else text
+        _trigger_agent(agent, spoken, dur)
+
+    # ── Mic source: prefer the MediaHub fan-out (no buffer contention with the
+    #    voice agent / recorder); fall back to direct /rover-mic drain. ──
+    use_hub = bool(_mediahub and os.getenv("LISTENER_USE_HUB", "1") not in ("0","false","False")
+                   and _mediahub.hub_available())
+    if use_hub:
+        print(f"[{_now()}] 👂 mic source: MediaHub fan-out (shared, no contention)", flush=True)
+
+        def _hub_cb(sample: dict) -> None:
+            try:
+                b64 = sample.get("payload")
+                rate = int(sample.get("meta", {}).get("rate", MIC_RATE))
+                if not b64:
+                    return
+                import base64 as _b64
+                pcm = np.frombuffer(_b64.b64decode(b64), dtype=np.int16).astype(np.float32) / 32768.0
+                _on_pcm(rate, pcm)
+            except Exception as e:
+                print(f"[{_now()}] 👂 hub cb error: {e}", flush=True)
+
+        subn = _mediahub.subscribe("mic", _hub_cb)
+        while not stop["flag"]:
+            time.sleep(0.2)
+        try:
+            subn.stop()
+        except Exception:
+            pass
+        print(f"[{_now()}] 👋 listener stopped")
+        return
+
+    # Fallback: own the mic directly (no hub running).
     for _ in range(15):
         if stop["flag"]:
             return
         if _mic_start():
-            print(f"[{_now()}] 👂 rover mic capture started @ {MIC_RATE}Hz", flush=True)
+            print(f"[{_now()}] 👂 rover mic capture started @ {MIC_RATE}Hz (direct)", flush=True)
             break
         time.sleep(2)
     else:
         print(f"[{_now()}] ⚠️  could not start rover mic (no audio track?) — retrying in loop", flush=True)
 
-    seg = _Segmenter(MIC_RATE)
-    last_trigger = 0.0
-
     while not stop["flag"]:
         try:
             rate, pcm = _mic_drain()
-            if rate != seg.rate:
-                seg = _Segmenter(rate)
-            utterance = seg.feed(pcm)
-            if utterance is not None:
-                dur = len(utterance) / rate
-                if transcriber.backend:
-                    text = transcriber.transcribe(utterance, rate)
-                else:
-                    text = ""  # detection-only mode
-                if text:
-                    print(f"[{_now()}] 👂 heard ({dur:.1f}s): {text!r}", flush=True)
-                if transcriber.backend and not _meaningful(text):
-                    continue
-                if (time.time() - last_trigger) < COOLDOWN_SEC:
-                    continue
-                last_trigger = time.time()
-                spoken = _strip_wake(text) if transcriber.backend else text
-                _trigger_agent(agent, spoken, dur)
+            _on_pcm(rate, pcm)
         except Exception as e:
             print(f"[{_now()}] ❌ listen loop error: {e}", flush=True)
             traceback.print_exc()
