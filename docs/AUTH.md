@@ -121,3 +121,42 @@ contains the access URL + whatever bootstrap token you chose to embed).
 | `SCOUT_MDNS` | `true` | advertise scout.local on the LAN |
 | `SCOUT_MDNS_NAME` | `scout` | advertised name (→ `<name>.local`) |
 | `DASH_TLS_MKCERT` | `auto` | use mkcert if installed (`off` to disable) |
+
+---
+
+# 📱 Trust scout on iOS / Android (zero warnings)
+
+mkcert is **baked into the Docker image**. When the dashboard runs with mkcert
+(default), it issues a *locally-trusted* cert — but a phone still needs to trust
+the **mkcert root CA** once to drop the warning entirely.
+
+The dashboard serves a self-contained helper:
+
+- **`/ca`** — downloads the mkcert root CA (`scout-rootCA.crt`).
+- **`/trust`** — a phone-friendly page with a QR to `/ca` + **OS-detected**
+  step-by-step (iOS profile install + Certificate Trust Settings; Android
+  CA-cert install). Linked from the field card and the settings drawer
+  (🔏 *trust on iOS / Android*).
+
+### iOS
+1. Open `/trust` in **Safari**, tap the CA → allow the profile.
+2. **Settings → Profile Downloaded → Install**.
+3. **Settings → General → About → Certificate Trust Settings** → toggle **ON**.
+
+### Android
+1. Open `/trust`, download `scout-rootCA.crt`.
+2. **Settings → Security → Encryption & credentials → Install a certificate →
+   CA certificate** → pick the file.
+
+### CA persistence
+`CAROOT=/app/.scout_auth_vol/mkcert-ca` (the persisted volume) so the CA — and
+therefore every phone's trust — **survives image rebuilds**. Don't delete that
+volume or phones must re-trust.
+
+```bash
+make ca               # show the CA path on the host
+make mkcert-install   # (host/dev) install mkcert + trust the CA locally
+```
+
+> Self-signed mode (no mkcert): `/trust` explains there's no CA to install —
+> just tap **Advanced → Proceed** on the one-time warning.

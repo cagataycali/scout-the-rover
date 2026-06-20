@@ -222,6 +222,33 @@ def ensure_cert() -> Optional[Tuple[str, str]]:
     return str(cert_path), str(key_path)
 
 
+def mkcert_ca_path() -> Optional[str]:
+    """Return the path to the mkcert root CA PEM, if mkcert is in use.
+
+    iOS/Android must trust THIS CA to avoid cert warnings. We surface it so the
+    dashboard can serve it for on-device install. Returns None if mkcert isn't
+    active (self-signed mode — nothing to trust; the user just clicks through).
+    """
+    import shutil
+    import subprocess
+
+    if os.getenv("DASH_TLS_MKCERT", "auto").strip().lower() in ("0", "false", "no", "off"):
+        return None
+    mkcert = shutil.which("mkcert")
+    if not mkcert:
+        return None
+    # CAROOT env wins; else ask mkcert
+    caroot = os.getenv("CAROOT", "").strip()
+    if not caroot:
+        try:
+            r = subprocess.run([mkcert, "-CAROOT"], capture_output=True, text=True, timeout=10)
+            caroot = r.stdout.strip()
+        except Exception:
+            return None
+    ca = Path(caroot) / "rootCA.pem"
+    return str(ca) if ca.exists() else None
+
+
 def access_urls(port: int) -> List[str]:
     """Pretty https:// URLs the operator can open."""
     urls = [f"https://localhost:{port}"]

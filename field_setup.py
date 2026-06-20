@@ -104,7 +104,8 @@ HTML_CARD = """<!DOCTYPE html><html><head><meta charset="utf-8">
   <ol>
     <li>Connect your phone/laptop to the <b>same Wi-Fi</b> as scout.</li>
     <li>Scan the QR (or type the URL).</li>
-    <li>Accept the security warning once (Advanced → Proceed){trusted_note}.</li>
+    <li>Accept the security warning once (Advanced → Proceed){trusted_note}.<br>
+        <small>📱 to remove warnings on iOS/Android, open <b>/trust</b> first.</small></li>
     <li>Tap <b>Create / Unlock passkey</b> — use Face ID / Touch ID / fingerprint.</li>
     <li>You're in. Drive responsibly. 🛞</li>
   </ol>

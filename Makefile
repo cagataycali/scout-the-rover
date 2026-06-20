@@ -61,6 +61,10 @@ mkcert-install: ## install mkcert + a locally-trusted CA (no browser warning)
 mdns: venv ## advertise scout.local on the LAN (standalone test)
 	@SCOUT_MDNS=true $(PY) scout_mdns.py
 
+.PHONY: ca
+ca: ## print the mkcert root CA path (install on phones via /trust QR)
+	@command -v mkcert >/dev/null 2>&1 && echo "CAROOT: $$(mkcert -CAROOT)" && ls -la "$$(mkcert -CAROOT)" || echo "mkcert not installed — run 'make mkcert-install' (or self-signed mode: just accept the browser warning)"
+
 .PHONY: sdk
 sdk: $(SDK_DIR)/.cloned ## clone + setup earth-rovers-sdk (our fork)
 

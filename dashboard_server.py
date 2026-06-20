@@ -36,7 +36,7 @@ import requests
 from dotenv import load_dotenv, dotenv_values, set_key
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 # 🔐 WebAuthn auth guard (passkey passwordless)
@@ -80,6 +80,82 @@ try:
     dashboard_replay.mount(app)
 except Exception as _e:
     print(f"⚠️  replay API not mounted: {_e}", flush=True)
+
+
+# 🔏 On-device CA-trust page (iOS / Android). Served at /trust. Detects the OS
+# and shows the exact steps to install + trust scout's mkcert root CA so the
+# browser shows NO certificate warning. {placeholders} filled by trust_page().
+_TRUST_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>scout · trust this device</title>
+<style>
+  body {{ font-family:system-ui,-apple-system,sans-serif; background:#0a0a0f; color:#e8e8f0;
+         margin:0; padding:24px; display:flex; justify-content:center; }}
+  .card {{ width:min(460px,92vw); background:linear-gradient(160deg,#13131c,#0b0b12);
+          border:1px solid rgba(255,255,255,.12); border-radius:24px; padding:28px;
+          box-shadow:0 24px 70px rgba(0,0,0,.5); }}
+  h1 {{ font-size:24px; margin:0 0 2px; text-align:center; }}
+  .sub {{ color:#9aa; font-size:13px; margin:0 0 18px; text-align:center; }}
+  .mode {{ display:inline-block; font-size:11px; padding:3px 9px; border-radius:999px;
+          background:rgba(118,185,0,.12); color:#9be319; border:1px solid rgba(118,185,0,.3); }}
+  .qr {{ background:#fff; border-radius:18px; padding:14px; display:block; width:max-content;
+        margin:14px auto; }}
+  .qr img {{ display:block; width:220px; height:220px; image-rendering:pixelated; }}
+  .dl {{ display:block; text-align:center; margin:6px 0 18px; }}
+  .dl a {{ color:#9be319; font-weight:600; font-size:15px; text-decoration:none; }}
+  .seg {{ display:flex; gap:8px; margin:0 0 14px; }}
+  .seg button {{ flex:1; padding:10px; border-radius:11px; border:1px solid rgba(255,255,255,.14);
+    background:rgba(255,255,255,.05); color:#cdd; font-size:14px; cursor:pointer; }}
+  .seg button.on {{ background:#76b900; color:#07120a; border-color:#76b900; font-weight:600; }}
+  .steps {{ display:none; }} .steps.on {{ display:block; }}
+  ol {{ font-size:13.5px; line-height:1.75; color:#cdd; padding-left:20px; margin:6px 0 0; }}
+  code {{ background:rgba(255,255,255,.08); padding:1px 6px; border-radius:6px; font-size:12px; }}
+  .warn {{ background:rgba(255,180,84,.1); border:1px dashed rgba(255,180,84,.4); color:#ffce9a;
+          border-radius:12px; padding:12px; font-size:13px; margin:0 0 16px; }}
+  .foot {{ margin-top:18px; font-size:11px; color:#556; text-align:center; }}
+</style></head><body>
+<div class="card">
+  <h1>🛞🔏 trust scout</h1>
+  <p class="sub">install the rover CA → no more certificate warnings<br>
+     <span class="mode">{mode}</span></p>
+  {selfsigned_note}
+  <div class="qr"><img src="data:image/png;base64,{qr_b64}" alt="CA QR"></div>
+  <div class="dl"><a href="{ca_url}" download="scout-rootCA.crt">⬇︎ download scout-rootCA.crt</a></div>
+
+  <div class="seg">
+    <button id="biOS" class="on" onclick="seg('iOS')">📱 iPhone / iPad</button>
+    <button id="bAnd" onclick="seg('And')">🤖 Android</button>
+  </div>
+
+  <div id="siOS" class="steps on">
+    <ol>
+      <li>Tap the QR / download link above in <b>Safari</b> — allow the profile.</li>
+      <li><b>Settings → Profile Downloaded → Install</b> (top-right), enter passcode.</li>
+      <li><b>Settings → General → About → Certificate Trust Settings</b>.</li>
+      <li>Toggle <b>ON</b> for <code>scout</code> / <code>mkcert</code>. Done — open the dashboard.</li>
+    </ol>
+  </div>
+  <div id="sAnd" class="steps">
+    <ol>
+      <li>Tap the download link above to save <code>scout-rootCA.crt</code>.</li>
+      <li><b>Settings → Security → Encryption &amp; credentials → Install a certificate → CA certificate</b>.</li>
+      <li>Pick the downloaded file, confirm <b>Install anyway</b>.</li>
+      <li>Open the dashboard — no warning. (Some apps need <i>user CA</i> trust enabled.)</li>
+    </ol>
+  </div>
+  <div class="foot">After trusting, return to the field card or open the dashboard directly.</div>
+</div>
+<script>
+  function seg(k){{
+    document.getElementById('biOS').classList.toggle('on', k==='iOS');
+    document.getElementById('bAnd').classList.toggle('on', k==='And');
+    document.getElementById('siOS').classList.toggle('on', k==='iOS');
+    document.getElementById('sAnd').classList.toggle('on', k==='And');
+  }}
+  // auto-pick based on UA
+  if (/android/i.test(navigator.userAgent)) seg('And');
+</script>
+</body></html>"""
 
 # 🔐 Auth routes (WebAuthn passkey) + guards
 
@@ -191,7 +267,7 @@ async def auth_credentials_delete(request: Request):
 # valid session. Public allowlist: the auth ceremony, static assets, the page
 # shell (so the login screen can load), and nothing that touches the rover.
 _PUBLIC_PREFIXES = ("/auth/", "/css/", "/js/")
-_PUBLIC_EXACT = {"/", "/replay", "/field-card", "/favicon.ico", "/api/health"}
+_PUBLIC_EXACT = {"/", "/replay", "/field-card", "/trust", "/ca", "/favicon.ico", "/api/health"}
 
 
 @app.middleware("http")
@@ -707,6 +783,61 @@ async def replay_page():
     return JSONResponse({"error": "docs/replay.html not found"}, status_code=404)
 
 
+@app.get("/ca")
+async def ca_cert():
+    """Serve the mkcert root CA so iOS/Android can trust scout's HTTPS.
+    Returns 404 in self-signed mode (nothing to install — just click through)."""
+    try:
+        import tls as scout_tls
+        ca = scout_tls.mkcert_ca_path()
+        if not ca:
+            return JSONResponse(
+                {"error": "no mkcert CA (self-signed mode). Accept the browser warning instead, "
+                          "or run mkcert + DASH_TLS_MKCERT=auto."},
+                status_code=404,
+            )
+        # iOS wants the profile downloaded; .crt/.pem with the right mime triggers install
+        return FileResponse(
+            ca,
+            media_type="application/x-x509-ca-cert",
+            filename="scout-rootCA.crt",
+        )
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.get("/trust")
+async def trust_page(request: Request):
+    """On-device CA-trust helper: QR to /ca + iOS/Android step-by-step."""
+    try:
+        import tls as scout_tls, field_setup, base64 as _b64
+        ca = scout_tls.mkcert_ca_path()
+        host = request.headers.get("host", "localhost")
+        scheme = "https" if request.url.scheme == "https" else "http"
+        ca_url = f"{scheme}://{host}/ca"
+        out_dir = Path(os.getenv("DASH_TLS_DIR", "./.scout_tls")).resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        png = out_dir / "ca_qr.png"
+        field_setup.png_qr(ca_url, png)
+        qr_b64 = _b64.b64encode(png.read_bytes()).decode()
+        selfsigned = ca is None
+        note = (
+            "<p class='warn'>⚠️ This rover is in <b>self-signed</b> mode — there's no CA to "
+            "install. Just tap <b>Advanced → Proceed</b> on the browser warning when you open "
+            "the dashboard. To remove warnings entirely, run mkcert on the rover host "
+            "(<code>make mkcert-install</code>).</p>"
+            if selfsigned else ""
+        )
+        html = _TRUST_HTML.format(
+            qr_b64=qr_b64, ca_url=ca_url,
+            mode=("self-signed (no CA)" if selfsigned else "mkcert trusted CA"),
+            selfsigned_note=note,
+        )
+        return HTMLResponse(html)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @app.get("/field-card")
 async def field_card():
     """Printable QR field-setup card (public — it's just the access URL).
@@ -751,10 +882,17 @@ if __name__ == "__main__":
 
     if scheme == "https":
         try:
+            trusted = scout_tls.mkcert_ca_path() is not None
             for u in scout_tls.access_urls(DASH_PORT):
                 print(f"🛞 scout dashboard → {u}  (SDK: {ROVER_SDK_URL})")
-            print("   ↑ self-signed cert: accept the one-time browser warning (Advanced → Proceed).")
+            if trusted:
+                print("   ↑ mkcert cert: NO warning on machines that trust the scout CA.")
+                print(f"   ↑ phones (iOS/Android): open https://<host>:{DASH_PORT}/trust to install the CA.")
+            else:
+                print("   ↑ self-signed cert: accept the one-time browser warning (Advanced → Proceed).")
+                print(f"   ↑ phones: open https://<host>:{DASH_PORT}/trust for CA-trust help.")
             print("   ↑ passkeys/WebAuthn require this HTTPS origin to work over LAN/IP.")
+            print(f"   🎫 field card: https://<host>:{DASH_PORT}/field-card")
         except Exception:
             print(f"🛞 scout dashboard → https://localhost:{DASH_PORT}  (SDK: {ROVER_SDK_URL})")
     else:
