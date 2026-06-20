@@ -75,7 +75,10 @@ start_reasoner() {
   local eager_flag=""
   [ "${C3_ENFORCE_EAGER:-false}" = "true" ] && eager_flag="--enforce-eager"
   echo "🚀 Cosmos reasoner: vllm serve ${model} on :${port} (max_len=${max_len}, gpu_mem=${gpu_mem})"
-  exec vllm serve "${model}"     --hf-overrides '{"architectures": ["Cosmos3ReasonerForConditionalGeneration"]}'     --tensor-parallel-size "${C3_TP:-1}"     --mm-encoder-tp-mode data     --async-scheduling     --max-model-len "${max_len}"     --gpu-memory-utilization "${gpu_mem}"     ${eager_flag}     --allowed-local-media-path /     --media-io-kwargs '{"video": {"num_frames": -1}}'     --port "${port}"
+  # The model's own config.json declares Cosmos3ForConditionalGeneration (a
+  # vLLM-supported arch), so NO --hf-overrides is needed. (Older builds forced
+  # Cosmos3ReasonerForConditionalGeneration which this vLLM doesn't register.)
+  exec vllm serve "${model}"     --tensor-parallel-size "${C3_TP:-1}"     --mm-encoder-tp-mode data     --async-scheduling     --max-model-len "${max_len}"     --gpu-memory-utilization "${gpu_mem}"     ${eager_flag}     --allowed-local-media-path /     --media-io-kwargs '{"video": {"num_frames": -1}}'     --port "${port}"
 }
 
 # 'all' = run SDK + dashboard + telegram + thinker in one container, supervised.
@@ -106,7 +109,7 @@ start_all() {
   # Cosmos reasoner co-located so cosmos3_reason/caption/embodied (which call
   # localhost:8000) resolve in-container. Off by default — it loads a model on GPU.
   if [ "${SCOUT_ENABLE_REASONER:-0}" = "1" ]; then
-    run reasoner bash -lc 'vllm serve "${C3_MODEL:-nvidia/Cosmos3-Nano}"       --hf-overrides "{\"architectures\": [\"Cosmos3ReasonerForConditionalGeneration\"]}"       --tensor-parallel-size "${C3_TP:-1}" --mm-encoder-tp-mode data --async-scheduling       --max-model-len "${C3_MAX_LEN:-32768}" --gpu-memory-utilization "${C3_GPU_MEM:-0.92}"       --allowed-local-media-path / --media-io-kwargs "{\"video\": {\"num_frames\": -1}}"       --port "${C3_REASON_PORT:-8000}"'
+    run reasoner bash -lc 'vllm serve "${C3_MODEL:-nvidia/Cosmos3-Nano}"       --tensor-parallel-size "${C3_TP:-1}" --mm-encoder-tp-mode data --async-scheduling       --max-model-len "${C3_MAX_LEN:-32768}" --gpu-memory-utilization "${C3_GPU_MEM:-0.92}"       --allowed-local-media-path / --media-io-kwargs "{\"video\": {\"num_frames\": -1}}"       --port "${C3_REASON_PORT:-8000}"'
   fi
   echo "✅ scout 'all' up: sdk + dashboard(${SCOUT_ENABLE_DASHBOARD:-1}) + telegram(${SCOUT_ENABLE_TELEGRAM:-1}) + thinker(${SCOUT_ENABLE_THINKER:-1}) + voice(${SCOUT_ENABLE_VOICE:-0}) + reasoner(${SCOUT_ENABLE_REASONER:-0})"
   trap 'kill ${PIDS[*]} 2>/dev/null || true' TERM INT
