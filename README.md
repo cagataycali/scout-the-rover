@@ -117,7 +117,7 @@ make live                      # 🧠+📱+🐢 agent + telegram + thinker, conc
 > Agora video channel on boot via a background browser warm-up (`AUTO_JOIN=true`).
 > No human "Join" click required, ever.
 
-### option B — 🐳 docker (Cosmos base image, one stack)
+### option B — 🐳 docker · GPU (Cosmos base image, one stack)
 
 The whole stack runs from **one image** built on NVIDIA's
 `vllm/vllm-omni:cosmos3` base, so Cosmos world-model tools work on-GPU
@@ -152,6 +152,42 @@ telegram + thinker (+ voice/reasoner), each child auto-restarting; toggle with
 > `SCOUT_ENABLE_REASONER=1`). The in-process **Diffusers** tools
 > (`text2video`/`image2video`/`text2image`, forward/inverse dynamics, policy)
 > need **no server** — they just run on the GPU.
+
+### option C — 🪶 docker · slim (CPU-only, no GPU)
+
+No GPU? Run the **full scout stack anywhere** — laptops, small cloud VMs,
+ARM / Raspberry-Pi-class boxes — from a lightweight image built on
+`python:3.12-slim`. Same services as option B (rover agent · SDK · dashboard ·
+telegram · thinker · voice, with HTTPS + passkeys + dataset recording), just
+**without** the 🌌 Cosmos world-model tools (those need a GPU and degrade away
+gracefully).
+
+```bash
+cp .env.docker.example .env    # same config as the GPU image
+make docker-slim-build         # build scout:slim (CPU torch, ~15GB vs ~50GB GPU)
+make docker-slim-up            # core: sdk(:8002) + dashboard(:8080)
+make docker-slim-up-all        # + telegram + thinker
+make docker-slim-logs          # tail all services
+make docker-slim-down          # stop + remove
+```
+
+| | GPU image (`scout:latest`) | slim image (`scout:slim`) |
+|---|---|---|
+| base | `vllm/vllm-omni:cosmos3` | `python:3.12-slim` |
+| size | ~50 GB | ~16 GB |
+| torch | CUDA | CPU-only (~200 MB) |
+| 🌌 Cosmos tools | ✅ on-GPU | ❌ (gracefully absent) |
+| everything else | ✅ | ✅ |
+| runs on | GPU instances | **anything** (incl. ARM) |
+
+- **Ultra-slim** (drive/see/talk but *no* dataset recording — drops torch +
+  lerobot): `INSTALL_LEROBOT=0 make docker-slim-build`.
+- **Why not Alpine?** `lerobot`/`opencv`/`numpy`/`cryptography` ship glibc
+  (manylinux) wheels; on Alpine/musl they'd compile from source or fail.
+  `python:3.12-slim` (Debian glibc) keeps it small *and* multi-arch.
+- ⚠️ The slim stack binds the same `:8002`/`:8080` — don't run it **and** the
+  GPU stack on the same host at once (they use different auth volumes); pick
+  one, or override `DASH_PORT`/`SDK_PORT`.
 
 ---
 
