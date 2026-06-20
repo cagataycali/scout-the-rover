@@ -704,8 +704,26 @@ class RecorderEngine:
             self._episode_idx = ds.meta.total_episodes
             return ds
 
+        # The root dir may already exist as a PARTIAL/uninitialized dataset
+        # (e.g. only meta-less + a sibling reasoning/ dir created by the
+        # ReasoningLoggerHook before the recorder ran). LeRobotDataset.create()
+        # demands a non-existent dir (mkdir exist_ok=False) → FileExistsError.
+        # Since there's no info.json, nothing here is a real dataset yet, so we
+        # clear the stale dir (preserving the reasoning/ sidecar) before create.
+        if root.exists():
+            import shutil
+            reasoning_dir = root / "reasoning"
+            preserved = None
+            if reasoning_dir.exists():
+                preserved = root.parent / ".reasoning_tmp"
+                if preserved.exists():
+                    shutil.rmtree(preserved, ignore_errors=True)
+                shutil.move(str(reasoning_dir), str(preserved))
+            shutil.rmtree(root, ignore_errors=True)
+            logger.info(f"cleared partial/uninitialized dataset dir at {root}")
+
         logger.info(f"creating dataset at {root}")
-        return LeRobotDataset.create(
+        _ds = LeRobotDataset.create(
             repo_id=self.repo_id,
             fps=self.fps,
             features=features,
@@ -718,6 +736,20 @@ class RecorderEngine:
             # meta/episodes/ entirely and the dataset can't be reloaded).
             metadata_buffer_size=1,
         )
+        # restore preserved reasoning/ sidecar into the fresh dataset root
+        try:
+            if root.exists():
+                _pres = root.parent / ".reasoning_tmp"
+                if _pres.exists():
+                    import shutil as _sh
+                    _dst = root / "reasoning"
+                    if not _dst.exists():
+                        _sh.move(str(_pres), str(_dst))
+                    else:
+                        _sh.rmtree(_pres, ignore_errors=True)
+        except Exception as _e:
+            logger.warning(f"could not restore reasoning sidecar: {_e}")
+        return _ds
 
     # Probes
 
