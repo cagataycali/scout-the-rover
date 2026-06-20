@@ -1,0 +1,22 @@
+[Unit]
+Description=scout — voice listener (rover mic → VAD → whisper → agent trigger)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cagatay
+Group=cagatay
+WorkingDirectory=/home/cagatay/earth-rover-mini
+EnvironmentFile=-/home/cagatay/earth-rover-mini/.env
+Environment=ROVER_AGENT_ID=listener
+# Optional wake word; leave empty to trigger on any speech:
+# Environment=LISTENER_WAKE_WORD=hey scout
+ExecStart=/home/cagatay/earth-rover-mini/.venv/bin/python /home/cagatay/earth-rover-mini/listener_loop.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

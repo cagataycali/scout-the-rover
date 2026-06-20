@@ -119,7 +119,10 @@ telegram: venv ## start telegram listener (chat with scout from anywhere)
 thinker: venv ## start slow-thinker background loop (every 60s by default)
 	@ROVER_AGENT_ID=thinker $(PY) thinker_loop.py
 
-.PHONY: merge
+listen: venv ## start the voice listener (drains rover mic → whisper → triggers agent)
+	@ROVER_AGENT_ID=listener $(PY) listener_loop.py
+
+.PHONY: listen merge
 merge: venv ## merge per-agent datasets → one unified timeline (DATASET=<dir> or today)
 	@DS="$(DATASET)"; \
 	if [ -z "$$DS" ]; then DS="datasets/scout__earth-rover-mini-$$(date +%Y%m%d)"; fi; \

@@ -6,3 +6,4 @@ strands-agents[bidi-all]
 # echo cancellation / noise suppression for rover voice (model must not hear itself)
 pywebrtc-audio>=0.1.0
 numpy>=1.24
+faster-whisper
