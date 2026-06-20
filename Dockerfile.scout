@@ -49,18 +49,49 @@ WORKDIR /app
 COPY requirements.txt requirements-voice.txt /app/
 COPY earth-rovers-sdk/requirements.txt /app/sdk-requirements.txt
 RUN python3 -m pip install --upgrade pip \
-    && pip install -r /app/requirements.txt \
+    # ⚠️ The base image ships a CUSTOM torch build (e.g. 2.11.0+cu130) that is
+    # NOT on PyPI and that vLLM's compiled _C extension is ABI-locked to. lerobot
+    # hard-pins a different (PyPI) torch, which would downgrade torch and break
+    # vLLM with an undefined-symbol ImportError. So:
+    #   1) freeze the base torch trio in a constraints file,
+    #   2) install everything EXCEPT lerobot under that constraint,
+    #   3) install lerobot with --no-deps (reuse base torch) + its non-torch deps.
+    && { \
+         echo "torch==$(pip show torch        2>/dev/null | awk '/^Version:/{print $2}')"; \
+         echo "torchvision==$(pip show torchvision 2>/dev/null | awk '/^Version:/{print $2}')"; \
+         echo "torchaudio==$(pip show torchaudio  2>/dev/null | awk '/^Version:/{print $2}')"; \
+         echo "fastapi==$(pip show fastapi   2>/dev/null | awk '/^Version:/{print $2}')"; \
+         echo "starlette==$(pip show starlette 2>/dev/null | awk '/^Version:/{print $2}')"; \
+       } | sed '/==$/d' > /tmp/torch-constraints.txt \
+    && echo "📌 pinned (torch+vllm-web stack):" && cat /tmp/torch-constraints.txt \
+    && export PIP_CONSTRAINT=/tmp/torch-constraints.txt \
+    # scout core WITHOUT lerobot (it conflicts on torch; installed separately below)
+    && grep -v '^lerobot' /app/requirements.txt > /app/requirements.core.txt \
+    && pip install -r /app/requirements.core.txt \
     && pip install fastapi uvicorn websockets python-multipart hypercorn \
-    && pip install -r /app/sdk-requirements.txt \
+    # SDK pins fastapi==0.111.1 which clashes with the base image's vLLM
+    # (needs 0.136.1). Drop the fastapi/starlette pins so the constraint wins;
+    # the SDK runs fine on the newer fastapi.
+    && sed -E '/^(fastapi|starlette)([=<>]|$)/d' /app/sdk-requirements.txt > /app/sdk-requirements.noweb.txt \
+    && pip install -r /app/sdk-requirements.noweb.txt \
     # voice extras are optional; don't fail the build if a wheel is unavailable
     && (pip install -r /app/requirements-voice.txt || echo "voice extras skipped") \
     # 🌌 Cosmos world-model tools (optional; base image already has CUDA/torch/vllm).
-    # Skip with --build-arg INSTALL_COSMOS=0. Failure won't break the build.
     && ( [ "${INSTALL_COSMOS:-1}" = "1" ] && (pip install strands-cosmos || echo "cosmos extras skipped") || echo "cosmos install disabled" ) \
-    # reconcile opencv with the base image's numpy 2.x (avoid cv2 ImportError):
-    # remove both opencv variants, then install ONE headless build for numpy 2.x
+    # 📦 lerobot for dataset recording — --no-deps so it reuses the base torch,
+    # then pull lerobot's non-torch runtime deps (still under the torch constraint
+    # so none of them can drag torch back in). Best-effort: recording is optional.
+    && ( pip install --no-deps "lerobot>=0.5.1" \
+         && pip install \
+              accelerate av datasets deepdiff diffusers draccus einops gymnasium \
+              huggingface-hub imageio jsonlines packaging pynput pyserial rerun-sdk \
+              termcolor torchcodec wandb \
+         || echo "lerobot install skipped (dataset recording unavailable)" ) \
+    # reconcile opencv with the base image's numpy 2.x (avoid cv2 ImportError)
     && (pip uninstall -y opencv-python opencv-python-headless 2>/dev/null || true) \
-    && pip install --no-cache-dir --force-reinstall "opencv-python-headless==4.11.0.86" "numpy>=2.0"
+    && pip install --no-cache-dir --force-reinstall "opencv-python-headless==4.11.0.86" "numpy>=2.0" \
+    # sanity: torch stack still matches the base (build fails early otherwise)
+    && python3 -c "import torch, torchvision, torchaudio; print('torch', torch.__version__, '| tv', torchvision.__version__, '| ta', torchaudio.__version__)"
 
 # --- App source --------------------------------------------------------------
 COPY . /app/
