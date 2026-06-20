@@ -76,6 +76,9 @@ RUN python3 -m pip install --upgrade pip \
     && pip install -r /app/sdk-requirements.noweb.txt \
     # voice extras are optional; don't fail the build if a wheel is unavailable
     && (pip install -r /app/requirements-voice.txt || echo "voice extras skipped") \
+    # listener deps installed SEPARATELY so a fragile voice wheel (pyaudio/
+    # pywebrtc) cannot block speech-to-text for the voice listener.
+    && (pip install faster-whisper webrtcvad || pip install faster-whisper || echo "listener stt extras skipped") \
     # 🌌 Cosmos world-model tools (optional; base image already has CUDA/torch/vllm).
     && ( [ "${INSTALL_COSMOS:-1}" = "1" ] && (pip install strands-cosmos || echo "cosmos extras skipped") || echo "cosmos install disabled" ) \
     # 📦 lerobot for dataset recording — --no-deps so it reuses the base torch,
