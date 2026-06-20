@@ -2,7 +2,10 @@
 // The packed LeRobot mp4 holds ALL episodes; each episode is a [from,to] window.
 // We clamp the <video> to that window and map video-time → frame → reasoning.
 const $ = (id) => document.getElementById(id);
-const api = (p) => fetch(p).then(r => r.json());
+const _tok = () => (window.SCOUT_TOKEN || localStorage.getItem("scout_token") || "");
+const _withTok = (u) => _tok() ? (u + (u.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(_tok())) : u;
+const _authHdr = () => _tok() ? { Authorization: `Bearer ${_tok()}` } : {};
+const api = (p) => fetch(p, { headers: _authHdr() }).then(r => r.json());
 
 let DS = null, FPS = 4, EPISODES = [], EP = null, EPDATA = null;
 let VIEW = "front", PLAYRATE = 1, playing = false;
@@ -35,7 +38,7 @@ async function loadDataset(id) {
 }
 
 function setVideoSrc() {
-  vid.src = `/api/replay/${DS}/video/${VIEW}`;
+  vid.src = _withTok(`/api/replay/${DS}/video/${VIEW}`);
   vid.load();
 }
 
@@ -249,4 +252,6 @@ async function memSearch() {
 $("memGo").onclick = memSearch;
 $("memQ").addEventListener("keydown", (e) => { if (e.key === "Enter") memSearch(); });
 
-init();
+window.scoutBoot = function() { if (window._rbooted) return; window._rbooted = true; init(); };
+if (!document.getElementById('authGate')) window.scoutBoot();
+else setTimeout(() => { const g = document.getElementById('authGate'); if (g && g.classList.contains('hidden')) window.scoutBoot(); }, 50);

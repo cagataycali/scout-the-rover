@@ -117,11 +117,22 @@ const ScoutAuth = (() => {
     return res;
   }
 
+  async function enrollAdditional(label) {
+    // requires an active session (server enforces). Same ceremony as enroll.
+    const { challenge_id, options } = await api('/auth/register/begin', { label });
+    const cred = await navigator.credentials.create({ publicKey: prepCreate(options) });
+    return api('/auth/register/finish', { challenge_id, credential: credToJSON(cred) });
+  }
+
+  async function listCredentials() { return (await api('/auth/credentials')).credentials; }
+  async function renameCredential(id, name) { return api('/auth/credentials/rename', { id, name }); }
+  async function deleteCredential(id) { return api('/auth/credentials/delete', { id }); }
+
   async function status() { return api('/auth/status'); }
 
   function logout() { setToken(''); api('/auth/logout', {}).catch(() => {}); location.reload(); }
 
-  return { api, status, enroll, login, logout, getToken, setToken, apiBase };
+  return { api, status, enroll, enrollAdditional, login, logout, getToken, setToken, apiBase, listCredentials, renameCredential, deleteCredential };
 })();
 
 // expose token globally so app.js can attach it
@@ -145,7 +156,11 @@ window.SCOUT_TOKEN = ScoutAuth.getToken();
   const subEl = document.getElementById('authSub');
 
   function show() { overlay.classList.remove('hidden'); }
-  function hide() { overlay.classList.add('hidden'); document.body.classList.remove('locked'); }
+  function hide() {
+    overlay.classList.add('hidden');
+    document.body.classList.remove('locked');
+    if (window.scoutBoot) window.scoutBoot();
+  }
   function setMsg(t, err) { msg.textContent = t || ''; msg.className = 'auth-msg' + (err ? ' err' : ''); }
 
   let st;
@@ -206,7 +221,7 @@ window.SCOUT_TOKEN = ScoutAuth.getToken();
         setMsg('✓ Unlocked.');
       }
       window.SCOUT_TOKEN = ScoutAuth.getToken();
-      setTimeout(() => { hide(); if (window.scoutBoot) window.scoutBoot(); }, 400);
+      setTimeout(hide, 400);
     } catch (e) {
       setMsg('✗ ' + (e.message || 'failed'), true);
       btnPrimary.disabled = false;

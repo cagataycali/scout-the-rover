@@ -152,6 +152,41 @@ async def auth_logout():
     return resp
 
 
+@app.get("/auth/credentials")
+async def auth_credentials(request: Request):
+    """List enrolled passkeys (admin only)."""
+    if not _AUTH_OK:
+        raise HTTPException(503, "auth unavailable")
+    scout_auth.require_auth(request)
+    me = None
+    try:
+        me = scout_auth.require_auth(request).get("sub")
+    except Exception:
+        pass
+    creds = scout_auth.list_credentials()
+    for c in creds:
+        c["current"] = (c["id"] == me)
+    return {"credentials": creds}
+
+
+@app.post("/auth/credentials/rename")
+async def auth_credentials_rename(request: Request):
+    if not _AUTH_OK:
+        raise HTTPException(503, "auth unavailable")
+    scout_auth.require_auth(request)
+    body = await request.json()
+    return scout_auth.rename_credential(body.get("id", ""), body.get("name", ""))
+
+
+@app.post("/auth/credentials/delete")
+async def auth_credentials_delete(request: Request):
+    if not _AUTH_OK:
+        raise HTTPException(503, "auth unavailable")
+    scout_auth.require_auth(request)
+    body = await request.json()
+    return scout_auth.delete_credential(body.get("id", ""))
+
+
 # 🔐 Global auth middleware — seals every /api/* route (incl. replay) behind a
 # valid session. Public allowlist: the auth ceremony, static assets, the page
 # shell (so the login screen can load), and nothing that touches the rover.

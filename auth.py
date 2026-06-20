@@ -149,6 +149,30 @@ def list_credentials() -> List[Dict[str, Any]]:
     ]
 
 
+def rename_credential(cred_id: str, name: str) -> Dict[str, Any]:
+    store = _load()
+    match = next((c for c in store["credentials"] if c["id"] == cred_id), None)
+    if not match:
+        raise HTTPException(404, "credential not found")
+    match["name"] = (name or "passkey").strip()[:64]
+    _save(store)
+    return {"id": cred_id, "name": match["name"]}
+
+
+def delete_credential(cred_id: str) -> Dict[str, Any]:
+    """Revoke a passkey. Refuses to remove the LAST one (would lock everyone
+    out and re-open the rover to anyone via the setup flow)."""
+    store = _load()
+    creds = store["credentials"]
+    if not any(c["id"] == cred_id for c in creds):
+        raise HTTPException(404, "credential not found")
+    if len(creds) <= 1:
+        raise HTTPException(409, "cannot remove the last passkey — enroll another first")
+    store["credentials"] = [c for c in creds if c["id"] != cred_id]
+    _save(store)
+    return {"ok": True, "removed": cred_id, "remaining": len(store["credentials"])}
+
+
 # per-request RP id / origin derivation
 def _host_only(host: str) -> str:
     # strip port for RP_ID (WebAuthn rpId is a domain, no port/scheme)

@@ -409,12 +409,78 @@ $('btnMic').addEventListener('click', () => { voiceOn ? stopVoice() : startVoice
 
 // settings drawer 
 const drawer = $('drawer'), scrim = $('drawerScrim');
-function openDrawer() { loadConfig(); drawer.classList.remove('hidden'); scrim.classList.remove('hidden'); }
+function openDrawer() { loadConfig(); loadPasskeys(); drawer.classList.remove('hidden'); scrim.classList.remove('hidden'); }
 function closeDrawer() { drawer.classList.add('hidden'); scrim.classList.add('hidden'); }
 $('btnSettings').addEventListener('click', openDrawer);
 $('btnCloseDrawer').addEventListener('click', closeDrawer);
 $('btnCloseDrawer2').addEventListener('click', closeDrawer);
 scrim.addEventListener('click', closeDrawer);
+
+// passkey management (multi-admin)
+function passkeyMsg(t, err) {
+  const el = $('passkeyMsg'); if (!el) return;
+  el.textContent = t || ''; el.className = 'passkey-msg' + (err ? ' err' : '');
+}
+
+async function loadPasskeys() {
+  const sec = $('passkeySection'); if (!sec) return;
+  const list = $('passkeyList');
+  if (!window.ScoutAuth) { sec.style.display = 'none'; return; }
+  try {
+    const creds = await ScoutAuth.listCredentials();
+    sec.style.display = '';
+    list.innerHTML = '';
+    creds.forEach((c) => {
+      const row = document.createElement('div');
+      row.className = 'passkey-row' + (c.current ? ' current' : '');
+      const when = c.created ? new Date(c.created * 1000).toLocaleDateString() : '';
+      row.innerHTML = `
+        <span class="pk-icon">🔑</span>
+        <input class="pk-name" value="${(c.name || 'passkey').replace(/"/g, '&quot;')}" data-id="${c.id}" />
+        <span class="pk-meta">${c.current ? 'this device · ' : ''}${when}</span>
+        <button class="pk-del icon-btn" data-id="${c.id}" title="revoke">🗑️</button>`;
+      list.appendChild(row);
+    });
+    // rename on blur/enter
+    list.querySelectorAll('.pk-name').forEach((inp) => {
+      const save = async () => {
+        try { await ScoutAuth.renameCredential(inp.dataset.id, inp.value.trim()); passkeyMsg('✓ renamed'); }
+        catch (e) { passkeyMsg('✗ ' + e.message, true); }
+      };
+      inp.addEventListener('blur', save);
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') inp.blur(); });
+    });
+    // delete
+    list.querySelectorAll('.pk-del').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Revoke this passkey? That device will no longer be able to drive scout.')) return;
+        try {
+          await ScoutAuth.deleteCredential(btn.dataset.id);
+          passkeyMsg('✓ revoked');
+          loadPasskeys();
+        } catch (e) { passkeyMsg('✗ ' + e.message, true); }
+      });
+    });
+  } catch (e) {
+    // auth disabled or unavailable → hide section
+    sec.style.display = 'none';
+  }
+}
+
+(function wirePasskeyAdd() {
+  const btn = $('btnAddPasskey'); if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const label = prompt('Name this passkey (e.g. "Cagatay\'s iPhone", "YubiKey-blue"):', 'new passkey');
+    if (label === null) return;
+    btn.disabled = true; passkeyMsg('Waiting for your authenticator…');
+    try {
+      await ScoutAuth.enrollAdditional(label.trim() || 'passkey');
+      passkeyMsg('✓ passkey enrolled');
+      loadPasskeys();
+    } catch (e) { passkeyMsg('✗ ' + (e.message || 'failed'), true); }
+    finally { btn.disabled = false; }
+  });
+})();
 
 let _envState = {};
 async function loadConfig() {
@@ -497,7 +563,15 @@ $('btnSaveCfg').addEventListener('click', async () => {
   } catch { toast('save failed', 'err'); }
 });
 
-// boot 
-connectChat();
-pollTelemetry(); setInterval(pollTelemetry, 2000);
-pollCameras();  setInterval(pollCameras, 700);
+// boot — deferred until the auth gate releases (auth.js calls window.scoutBoot)
+let _booted = false;
+window.scoutBoot = function scoutBoot() {
+  if (_booted) return; _booted = true;
+  connectChat();
+  pollTelemetry(); setInterval(pollTelemetry, 2000);
+  pollCameras();  setInterval(pollCameras, 700);
+};
+// Fallback: if auth.js isn't present / gate never runs, boot after a tick.
+setTimeout(() => { if (!_booted && document.getElementById('authGate') && document.getElementById('authGate').classList.contains('hidden')) window.scoutBoot(); }, 50);
+// If there's no gate element at all (auth removed), boot immediately.
+if (!document.getElementById('authGate')) window.scoutBoot();

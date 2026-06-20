@@ -453,3 +453,26 @@ body.locked { overflow: hidden; }
 .auth-msg { min-height: 18px; margin-top: 14px; font-size: 13px; color: rgba(155,227,25,.9); }
 .auth-msg.err { color: #ff5d6c; }
 .auth-foot { margin: 16px 0 0; font-size: 11px; color: rgba(255,255,255,.35); }
+
+/* 🔑 passkey management (settings drawer) */
+.passkey-section { margin: 6px 0 18px; }
+.passkey-section h3 { margin: 0 0 4px; font-size: 14px; }
+.passkey-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.passkey-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 11px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.10);
+}
+.passkey-row.current { border-color: rgba(118,185,0,.45); background: rgba(118,185,0,.07); }
+.passkey-row .pk-icon { font-size: 16px; }
+.passkey-row .pk-name {
+  flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+  color: #fff; font-size: 14px; padding: 2px 4px; border-bottom: 1px dashed transparent;
+}
+.passkey-row .pk-name:focus { border-bottom-color: rgba(118,185,0,.5); }
+.passkey-row .pk-meta { font-size: 11px; color: rgba(255,255,255,.4); white-space: nowrap; }
+.passkey-row .pk-del { font-size: 14px; opacity: .6; }
+.passkey-row .pk-del:hover { opacity: 1; }
+#btnAddPasskey { width: 100%; justify-content: center; }
+.passkey-msg { min-height: 16px; margin-top: 8px; font-size: 12px; color: rgba(155,227,25,.9); }
+.passkey-msg.err { color: #ff5d6c; }

@@ -44,6 +44,22 @@
 </style>
 </head>
 <body>
+<!-- 🔐 auth gate -->
+<div class="auth-gate hidden" id="authGate">
+  <div class="auth-card glass" id="authCard">
+    <div class="auth-logo">🛞🔐</div>
+    <h2 id="authTitle">scout</h2>
+    <p class="auth-sub" id="authSub">authenticating…</p>
+    <div class="auth-field hidden" id="authBootstrapWrap">
+      <label>Bootstrap token</label>
+      <input id="authBootstrap" type="password" placeholder="one-time setup secret" autocomplete="off" />
+    </div>
+    <button class="auth-btn" id="authPrimary">✦ Continue</button>
+    <div class="auth-msg" id="authMsg"></div>
+    <p class="auth-foot">Passwordless · your key never leaves this device.</p>
+  </div>
+</div>
+
 <div class="aurora"></div>
 <div class="rwrap">
   <div class="rhead">
@@ -96,6 +112,7 @@
     </div>
   </div>
 </div>
+<script src="js/auth.js"></script>
 <script src="js/replay.js"></script>
 </body>
 </html>
