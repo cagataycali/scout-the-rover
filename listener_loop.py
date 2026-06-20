@@ -40,6 +40,11 @@ from typing import List, Optional
 
 import numpy as np
 import requests
+
+try:
+    import webrtcvad  # optional, more accurate than energy VAD
+except Exception:
+    webrtcvad = None
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -177,6 +182,13 @@ class _Segmenter:
 
     def __init__(self, rate: int) -> None:
         self.rate = rate
+        # webrtcvad needs 8/16/32/48 kHz and 10/20/30ms frames; use 30ms.
+        self._vad = None
+        if webrtcvad is not None and rate in (8000, 16000, 32000, 48000):
+            try:
+                self._vad = webrtcvad.Vad(int(os.getenv('LISTENER_VAD_AGGRESSIVENESS', '2')))
+            except Exception:
+                self._vad = None
         self.in_speech = False
         self.buf: List[np.ndarray] = []
         self.silence_run = 0.0
@@ -192,9 +204,16 @@ class _Segmenter:
             frame = samples[i:i + win]
             if len(frame) == 0:
                 continue
-            rms = float(np.sqrt(np.mean(frame * frame)) + 1e-9)
             dt = len(frame) / self.rate
-            if rms >= ENERGY_THRESHOLD:
+            if self._vad is not None and len(frame) == win:
+                try:
+                    pcm16 = (np.clip(frame, -1, 1) * 32767).astype(np.int16).tobytes()
+                    is_voiced = self._vad.is_speech(pcm16, self.rate)
+                except Exception:
+                    is_voiced = float(np.sqrt(np.mean(frame * frame))) >= ENERGY_THRESHOLD
+            else:
+                is_voiced = float(np.sqrt(np.mean(frame * frame))) >= ENERGY_THRESHOLD
+            if is_voiced:
                 self.in_speech = True
                 self.buf.append(frame)
                 self.speech_dur += dt
@@ -224,6 +243,18 @@ class _Segmenter:
         self.buf = []
         self.silence_run = 0.0
         self.speech_dur = 0.0
+
+
+def _strip_wake(text: str) -> str:
+    """If a wake word is set and present, return only the text AFTER it."""
+    if not WAKE_WORD:
+        return text.strip()
+    low = text.lower()
+    idx = low.find(WAKE_WORD)
+    if idx < 0:
+        return ""
+    after = text[idx + len(WAKE_WORD):].strip(" ,.:;!?-")
+    return after or text.strip()
 
 
 def _meaningful(text: str) -> bool:
@@ -300,7 +331,8 @@ def main() -> None:
                 if (time.time() - last_trigger) < COOLDOWN_SEC:
                     continue
                 last_trigger = time.time()
-                _trigger_agent(agent, text, dur)
+                spoken = _strip_wake(text) if transcriber.backend else text
+                _trigger_agent(agent, spoken, dur)
         except Exception as e:
             print(f"[{_now()}] ❌ listen loop error: {e}", flush=True)
             traceback.print_exc()

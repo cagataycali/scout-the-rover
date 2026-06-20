@@ -160,6 +160,21 @@ services:
         condition: service_healthy
     profiles: ["thinker", "all"]
 
+  # ---- Voice listener: rover mic → VAD → whisper → triggers the agent -------
+  listener:
+    <<: *scout-common
+    container_name: scout-listener
+    command: ["listener"]
+    environment:
+      ROVER_SDK_URL: "http://sdk:8002"
+      LISTENER_WAKE_WORD: "${LISTENER_WAKE_WORD:-}"
+      LISTENER_WHISPER_MODEL: "${LISTENER_WHISPER_MODEL:-base.en}"
+      LISTENER_ENERGY_THRESHOLD: "${LISTENER_ENERGY_THRESHOLD:-0.012}"
+    depends_on:
+      sdk:
+        condition: service_healthy
+    profiles: ["listener", "all"]
+
   # ---- Voice agent: bidirectional speech (browser/onboard mic ↔ model) -------
   voice:
     <<: *scout-common

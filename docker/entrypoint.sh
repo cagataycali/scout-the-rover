@@ -5,6 +5,7 @@
 #   scout-entrypoint dashboard  # web dashboard (:8080)
 #   scout-entrypoint telegram   # telegram listener
 #   scout-entrypoint thinker    # slow-thinker background loop
+#   scout-entrypoint listener   # voice listener (rover mic → whisper → agent)
 #   scout-entrypoint agent      # interactive rover REPL
 #   scout-entrypoint all        # sdk + dashboard + telegram + thinker (supervised)
 set -euo pipefail
@@ -51,6 +52,10 @@ start_telegram() {
 
 start_thinker() {
   exec python3 /app/thinker_loop.py
+}
+
+start_listener() {
+  exec python3 /app/listener_loop.py
 }
 
 start_agent() {
@@ -105,13 +110,14 @@ start_all() {
   [ "${SCOUT_ENABLE_DASHBOARD:-1}" = "1" ] && run dashboard python3 /app/dashboard_server.py
   [ "${SCOUT_ENABLE_TELEGRAM:-1}"  = "1" ] && run telegram  python3 /app/telegram_listener.py
   [ "${SCOUT_ENABLE_THINKER:-1}"   = "1" ] && run thinker   python3 /app/thinker_loop.py
+  [ "${SCOUT_ENABLE_LISTENER:-0}"  = "1" ] && run listener  python3 /app/listener_loop.py
   [ "${SCOUT_ENABLE_VOICE:-0}"     = "1" ] && run voice     python3 /app/voice_agent.py
   # Cosmos reasoner co-located so cosmos3_reason/caption/embodied (which call
   # localhost:8000) resolve in-container. Off by default — it loads a model on GPU.
   if [ "${SCOUT_ENABLE_REASONER:-0}" = "1" ]; then
     run reasoner bash -lc 'vllm serve "${C3_MODEL:-nvidia/Cosmos3-Nano}"       --tensor-parallel-size "${C3_TP:-1}" --mm-encoder-tp-mode data --async-scheduling       --max-model-len "${C3_MAX_LEN:-32768}" --gpu-memory-utilization "${C3_GPU_MEM:-0.92}"       --allowed-local-media-path / --media-io-kwargs "{\"video\": {\"num_frames\": -1}}"       --port "${C3_REASON_PORT:-8000}"'
   fi
-  echo "✅ scout 'all' up: sdk + dashboard(${SCOUT_ENABLE_DASHBOARD:-1}) + telegram(${SCOUT_ENABLE_TELEGRAM:-1}) + thinker(${SCOUT_ENABLE_THINKER:-1}) + voice(${SCOUT_ENABLE_VOICE:-0}) + reasoner(${SCOUT_ENABLE_REASONER:-0})"
+  echo "✅ scout 'all' up: sdk + dashboard(${SCOUT_ENABLE_DASHBOARD:-1}) + telegram(${SCOUT_ENABLE_TELEGRAM:-1}) + thinker(${SCOUT_ENABLE_THINKER:-1}) + listener(${SCOUT_ENABLE_LISTENER:-0}) + voice(${SCOUT_ENABLE_VOICE:-0}) + reasoner(${SCOUT_ENABLE_REASONER:-0})"
   trap 'kill ${PIDS[*]} 2>/dev/null || true' TERM INT
   wait -n
 }
@@ -121,11 +127,12 @@ case "$SERVICE" in
   dashboard)  start_dashboard ;;
   telegram)   start_telegram ;;
   thinker)    start_thinker ;;
+  listener)   start_listener ;;
   agent)      start_agent ;;
   voice)      start_voice ;;
   reasoner)   start_reasoner ;;
   warmup)     start_warmup ;;
   all)        start_all ;;
   bash|sh)    exec /bin/bash ;;
-  *) echo "unknown service '$SERVICE'"; echo "valid: sdk|dashboard|telegram|thinker|agent|voice|reasoner|warmup|all|bash"; exit 1 ;;
+  *) echo "unknown service '$SERVICE'"; echo "valid: sdk|dashboard|telegram|thinker|listener|agent|voice|reasoner|warmup|all|bash"; exit 1 ;;
 esac
