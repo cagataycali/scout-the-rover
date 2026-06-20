@@ -779,10 +779,23 @@ class RecorderEngine:
         probed resolution is discarded.
         """
         try:
-            r = sdk_get("/v2/front", timeout=5)
-            if r.status_code != 200:
-                return None
-            b64 = r.json().get("front_frame")
+            # Prefer the MediaHub (which has the /screenshot fallback for when the
+            # SDK /v2 fast-frame path is uninitialized); else direct /v2/front.
+            b64 = None
+            if _mediahub:
+                b64 = _mediahub.latest_frame_b64("front")
+            if not b64:
+                r = sdk_get("/v2/front", timeout=5)
+                if r.status_code == 200:
+                    b64 = r.json().get("front_frame")
+            # Last resort: /screenshot render directly.
+            if not b64:
+                try:
+                    sr = sdk_get("/screenshot", view_types="front")
+                    if sr.status_code == 200:
+                        b64 = sr.json().get("front_frame")
+                except Exception:
+                    pass
             if not b64:
                 return None
             # Validate decodability
