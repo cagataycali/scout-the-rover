@@ -839,14 +839,34 @@ async def trust_page(request: Request):
 
 
 @app.get("/field-card")
-async def field_card():
+async def field_card(request: Request):
     """Printable QR field-setup card (public — it's just the access URL).
-    Regenerated on each request so it always reflects the live host/port."""
+    Regenerated on each request so it always reflects the live host/port.
+
+    URL precedence: SCOUT_PUBLIC_URL env → the actual request Host (so visiting
+    via nip.io / a domain shows that exact origin) → field_setup.default_url()."""
     try:
         import field_setup
         out_dir = Path(os.getenv("DASH_TLS_DIR", "./.scout_tls"))
-        url = field_setup.default_url()
-        bootstrap = os.getenv("SCOUT_AUTH_BOOTSTRAP_TOKEN", "")
+        url = os.getenv("SCOUT_PUBLIC_URL", "").strip()
+        if not url:
+            host = request.headers.get("host", "").strip()
+            if host:
+                scheme = "https" if os.getenv("DASH_TLS", "true").strip().lower() in ("1", "true", "yes", "on") else "http"
+                url = f"{scheme}://{host}"
+        if not url:
+            url = field_setup.default_url()
+        # Only surface the one-time bootstrap token while setup is still pending
+        # (no admin passkey enrolled yet). Once bootstrapped, never leak it on the
+        # public field card — it's no longer needed and shouldn't be exposed.
+        bootstrap = ""
+        try:
+            import auth as _auth
+            if not _auth.has_credentials():
+                bootstrap = os.getenv("SCOUT_AUTH_BOOTSTRAP_TOKEN", "")
+        except Exception:
+            # if auth state can't be read, fail closed: don't print the token
+            bootstrap = ""
         trusted = os.getenv("DASH_TLS_MKCERT", "auto").lower() not in ("0", "false", "no", "off")
         res = field_setup.build(url, out_dir.resolve(), bootstrap=bootstrap, trusted=trusted)
         return FileResponse(res["html"], media_type="text/html")
