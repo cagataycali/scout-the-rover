@@ -195,12 +195,16 @@ def spatial_block() -> str:
 
 def perception_block() -> str:
     """Live object detections (YOLO or LocateAnything-3B) from the perception
-    subscriber, if it's running. Empty otherwise — never breaks the turn."""
+    detector, read via the MediaHub 'detections' stream (cross-container).
+    Empty otherwise — never breaks the turn."""
     try:
-        from yolo_detector import latest_context
-        ctx = latest_context()
-        if ctx:
-            return "## 👁️ LIVE PERCEPTION (object detector, this moment):\n" + ctx + "\n"
+        import media_client as _mc
+        d = _mc.latest_detections()
+        if d and d.get("dets"):
+            backend = d.get("backend", "detector")
+            names = ", ".join(sorted({x.get("cls", "?") for x in d["dets"]}))
+            return (f"## 👁️ LIVE PERCEPTION ({backend}, {d.get('cam','front')} cam, now):\n"
+                    f"sees: {names}\n")
     except Exception:
         pass
     return ""

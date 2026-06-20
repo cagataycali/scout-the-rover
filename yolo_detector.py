@@ -237,9 +237,20 @@ class YoloDetector:
             except Exception:
                 pass
         self.latest[cam] = {"ts": sample.get("ts"), "dets": dets, "n": len(dets)}
+        self._publish_detections(cam, sample.get("ts"), dets)
 
         # Align into the dataset episode if recording.
         self._write_aligned(cam, sample, dets)
+
+    def _publish_detections(self, cam, ts, dets):
+        """Push detections to the hub 'detections' stream so OTHER containers
+        (the agent) can read live perception via media_client."""
+        try:
+            mc.publish_detections({"cam": cam, "ts": ts,
+                                   "backend": getattr(self, 'backend_name', 'yolo'),
+                                   "dets": dets})
+        except Exception:
+            pass
 
     def _write_aligned(self, cam: str, sample: dict, dets: list) -> None:
         st = _recorder_status()

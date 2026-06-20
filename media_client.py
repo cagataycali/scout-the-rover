@@ -233,3 +233,36 @@ def decode_jpeg_b64(b64: str):
         return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     except Exception:
         return None
+
+
+# ── detections stream (perception fan-in) ───────────────────────────────────
+def publish_detections(payload: dict) -> bool:
+    """Detector → hub: publish a detections payload. In-proc or network."""
+    h = _inproc_hub()
+    if h:
+        h.publish("detections", payload, {"fmt": "json"})
+        return True
+    if HUB_ENABLED != "off":
+        try:
+            requests.post(f"{_hub_url()}/publish/detections",
+                          json={"payload": payload, "meta": {"fmt": "json"}}, timeout=2)
+            return True
+        except Exception:
+            return False
+    return False
+
+
+def latest_detections() -> Optional[dict]:
+    """Agent/dashboard → hub: newest detections payload (or None)."""
+    h = _inproc_hub()
+    if h:
+        s = h.latest("detections")
+        return s.payload if s else None
+    if HUB_ENABLED != "off":
+        try:
+            r = requests.get(f"{_hub_url()}/latest/detections", timeout=2)
+            if r.status_code == 200:
+                return r.json().get("payload")
+        except Exception:
+            pass
+    return None

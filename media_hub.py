@@ -123,6 +123,7 @@ class MediaHub:
             "rear": _Stream("rear"),
             "mic": _Stream("mic"),
             "data": _Stream("data"),
+            "detections": _Stream("detections"),  # perception results, published by detectors
         }
         self._threads: Dict[str, threading.Thread] = {}
         self._running = threading.Event()
@@ -176,20 +177,38 @@ class MediaHub:
 
     # ── drain loops ────────────────────────────────────────────────────
     def _drain_video_loop(self, cam: str) -> None:
+        # Primary: fast /v2/<cam>. Fallback: /screenshot (headless browser render)
+        # — the SDK's /v2 fast-path occasionally 404s with an uninitialized
+        # video-track config while /screenshot still renders fine.
         url = f"{SDK_URL}/v2/{cam}"
         key = f"{cam}_frame"
+        shot_url = f"{SDK_URL}/screenshot"
+        v2_fail_streak = 0
         while self._running.is_set():
             t0 = time.time()
+            b64 = None
             try:
                 r = requests.get(url, timeout=3)
                 if r.status_code == 200:
                     b64 = r.json().get(key)
-                    if b64:
-                        self.streams[cam].publish(b64, {"fmt": "jpeg_b64"})
-                        self.stats[cam] += 1
+                    v2_fail_streak = 0
+                else:
+                    v2_fail_streak += 1
             except Exception:
-                pass
-            self._sleep_to(t0, VIDEO_INTERVAL)
+                v2_fail_streak += 1
+            # Fallback to /screenshot if /v2 has been failing.
+            if b64 is None and v2_fail_streak >= 2:
+                try:
+                    r = requests.get(shot_url, params={"view_types": cam}, timeout=6)
+                    if r.status_code == 200:
+                        b64 = r.json().get(key)
+                except Exception:
+                    pass
+            if b64:
+                self.streams[cam].publish(b64, {"fmt": "jpeg_b64",
+                                                "src": "v2" if v2_fail_streak == 0 else "screenshot"})
+                self.stats[cam] += 1
+            self._sleep_to(t0, VIDEO_INTERVAL if v2_fail_streak == 0 else max(VIDEO_INTERVAL, 0.4))
 
     def _drain_mic_loop(self, _name: str) -> None:
         while self._running.is_set():
@@ -240,6 +259,12 @@ class MediaHub:
         if st:
             st.unsubscribe(q)
 
+    def publish(self, stream: str, payload: Any, meta: Optional[dict] = None):
+        st = self.streams.get(stream)
+        if st:
+            st.publish(payload, meta)
+            self.stats[stream] = self.stats.get(stream, 0) + 1
+
     def status(self) -> Dict[str, Any]:
         return {
             "running": self._running.is_set(),
@@ -258,7 +283,7 @@ HUB = MediaHub()
 # ── Network server (cross-container fan-out) ────────────────────────────────
 def _build_app():
     """FastAPI app: REST /latest + WebSocket /media for remote subscribers."""
-    from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+    from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
     from fastapi.responses import JSONResponse
 
     app = FastAPI(title="scout-media-hub")
@@ -270,6 +295,11 @@ def _build_app():
     @app.get("/status")
     def status():
         return HUB.status()
+
+    @app.post("/publish/{stream}")
+    async def publish_stream(stream: str, body: dict):
+        HUB.publish(stream, body.get("payload"), body.get("meta"))
+        return {"ok": True}
 
     @app.get("/latest/{stream}")
     def latest(stream: str):

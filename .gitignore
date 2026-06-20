@@ -33,3 +33,4 @@ yolov8n.pt
 .scout_pose.json
 .scout_calibration.json
 cosmos_clips/
+.venv-locate/
