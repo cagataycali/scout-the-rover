@@ -319,3 +319,36 @@ docker-ps: ## show scout container status
 .PHONY: docker-shell
 docker-shell: ## open a bash shell in a fresh scout container
 	@$(COMPOSE) run --rm --entrypoint /usr/local/bin/scout-entrypoint dashboard bash
+
+# ============================================================================
+# 🪶 Docker SLIM (CPU-only, no GPU/Cosmos) — runs the full scout stack anywhere
+#   Config: cp .env.docker.example .env  (HF/GitHub/Telegram/FrodoBot tokens)
+#   Ultra-slim (no recording): INSTALL_LEROBOT=0 make docker-slim-build
+# ============================================================================
+COMPOSE_SLIM ?= docker compose -f docker-compose.slim.yml
+
+.PHONY: docker-slim-build
+docker-slim-build: ## build scout:slim (python:3.12-slim base, CPU torch)
+	@$(COMPOSE_SLIM) build
+
+.PHONY: docker-slim-up
+docker-slim-up: ## start core slim stack (sdk + dashboard)
+	@$(COMPOSE_SLIM) up -d sdk dashboard
+	@echo "🪶 slim dashboard → https://localhost:$${DASH_PORT:-8080}   sdk → http://localhost:$${SDK_PORT:-8002}"
+
+.PHONY: docker-slim-up-all
+docker-slim-up-all: ## start EVERYTHING slim (sdk + dashboard + telegram + thinker)
+	@$(COMPOSE_SLIM) --profile all up -d
+	@echo "🪶 full slim scout stack up."
+
+.PHONY: docker-slim-down
+docker-slim-down: ## stop + remove the slim stack
+	@$(COMPOSE_SLIM) --profile all down
+
+.PHONY: docker-slim-logs
+docker-slim-logs: ## tail slim service logs
+	@$(COMPOSE_SLIM) logs -f
+
+.PHONY: docker-slim-ps
+docker-slim-ps: ## show slim container status
+	@$(COMPOSE_SLIM) ps

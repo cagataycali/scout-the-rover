@@ -1,0 +1,94 @@
+# =============================================================================
+# Scout the Rover — SLIM / CPU-only image (no GPU, no Cosmos)
+# Base: python:3.12-slim (Debian glibc → full manylinux wheel compatibility;
+# Alpine/musl is intentionally NOT used because lerobot/opencv/numpy/cryptography
+# ship glibc wheels and would otherwise compile from source or fail).
+#
+# Runs the FULL scout stack on any box (laptop, small VM, ARM, Raspberry Pi-class):
+#   rover agent · earth-rovers-sdk · dashboard · telegram · slow-thinker · voice
+# Everything except the 🌌 NVIDIA Cosmos world-model tools, which need a GPU and
+# live in Dockerfile.scout (vllm/vllm-omni:cosmos3 base).
+#
+# torch comes in CPU-only (~200MB) via the cpu wheel index instead of CUDA (~2.5GB).
+#
+# Build:  docker build -f Dockerfile.scout.slim -t scout:slim .
+# Run:    docker compose -f docker-compose.slim.yml up -d
+#
+# Knobs:
+#   INSTALL_LEROBOT=1  → dataset recording (pulls torch-cpu + lerobot). Set 0 for
+#                        an ultra-slim image that can drive/see/talk but NOT record.
+# =============================================================================
+ARG PYTHON_BASE=python:3.12-slim
+ARG INSTALL_LEROBOT=1
+FROM ${PYTHON_BASE}
+ARG INSTALL_LEROBOT=1
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    CHROME_EXECUTABLE_PATH=/usr/bin/chromium \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    # No GPU / no Cosmos in this image.
+    SCOUT_ENABLE_COSMOS=0 \
+    # mkcert local-CA root persists in the auth volume (phone trust survives rebuilds)
+    CAROOT=/app/.scout_auth_vol/mkcert-ca
+
+# --- System deps -------------------------------------------------------------
+# chromium (camera capture for the SDK), audio (voice), TLS tooling, fonts,
+# and the shared libs opencv/lerobot need. Chromium from Debian repos works on
+# both amd64 and arm64 (Pi-class) — no Google Chrome .deb (amd64-only) here.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates git curl wget gnupg \
+        build-essential python3-dev linux-libc-dev \
+        chromium \
+        fonts-ipafont-gothic fonts-wqy-zenhei fonts-freefont-ttf \
+        libgl1 libglib2.0-0 libnss3 libxss1 \
+        portaudio19-dev libasound2-dev \
+        ffmpeg \
+        libnss3-tools \
+    && ARCH="$(dpkg --print-architecture)" \
+    && wget -qO /usr/local/bin/mkcert "https://dl.filippo.io/mkcert/latest?for=linux/${ARCH}" \
+    && chmod +x /usr/local/bin/mkcert \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# --- Python deps -------------------------------------------------------------
+# Copy manifests first for layer caching.
+COPY requirements.txt requirements-voice.txt /app/
+COPY earth-rovers-sdk/requirements.txt /app/sdk-requirements.txt
+
+# Install CPU-only torch FIRST (from the cpu wheel index) so lerobot reuses it
+# instead of dragging in the CUDA build. Then scout + sdk deps.
+RUN python3 -m pip install --upgrade pip \
+    # CPU torch stack (small). Skipped automatically if INSTALL_LEROBOT=0.
+    && ( [ "${INSTALL_LEROBOT:-1}" = "1" ] \
+         && pip install --index-url https://download.pytorch.org/whl/cpu \
+              torch torchvision torchcodec \
+         || echo "skip torch-cpu (INSTALL_LEROBOT=0)" ) \
+    # scout core (lerobot is listed in requirements.txt; only install it when wanted)
+    && if [ "${INSTALL_LEROBOT:-1}" = "1" ]; then \
+         pip install -r /app/requirements.txt ; \
+       else \
+         grep -v '^lerobot' /app/requirements.txt > /app/requirements.nolerobot.txt \
+         && pip install -r /app/requirements.nolerobot.txt ; \
+       fi \
+    && pip install fastapi uvicorn websockets python-multipart hypercorn \
+    && pip install -r /app/sdk-requirements.txt \
+    # voice extras optional — don't fail the build if a wheel is unavailable
+    && (pip install -r /app/requirements-voice.txt || echo "voice extras skipped") \
+    # one consistent headless opencv for numpy 2.x (avoid cv2 ImportError clash)
+    && (pip uninstall -y opencv-python opencv-python-headless 2>/dev/null || true) \
+    && pip install --no-cache-dir --force-reinstall "opencv-python-headless==4.11.0.86" "numpy>=2.0"
+
+# --- App source --------------------------------------------------------------
+COPY . /app/
+
+COPY docker/entrypoint.sh /usr/local/bin/scout-entrypoint
+RUN chmod +x /usr/local/bin/scout-entrypoint
+
+# dashboard 8080, sdk 8002
+EXPOSE 8080 8002
+
+ENTRYPOINT ["/usr/local/bin/scout-entrypoint"]
+CMD ["dashboard"]
