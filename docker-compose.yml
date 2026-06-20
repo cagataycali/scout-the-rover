@@ -119,8 +119,18 @@ services:
       SCOUT_AUTH_ENABLED: "${SCOUT_AUTH_ENABLED:-true}"
       SCOUT_AUTH_STORE: "/app/.scout_auth_vol/auth.json"
       SCOUT_AUTH_BOOTSTRAP_TOKEN: "${SCOUT_AUTH_BOOTSTRAP_TOKEN:-}"
+      # 📡 mDNS: advertise scout.local so phones/laptops resolve a hostname
+      # (WebAuthn rpId can't be a raw IP). REQUIRES host networking to reach the
+      # LAN — see network_mode below. Set SCOUT_MDNS=false to disable.
+      SCOUT_MDNS: "${SCOUT_MDNS:-true}"
+      SCOUT_MDNS_NAME: "${SCOUT_MDNS_NAME:-scout}"
     ports:
       - "${DASH_PORT:-8080}:8080"
+    # 📡 To let mDNS (scout.local) reach the LAN, run the dashboard on the host
+    # network. Uncomment the next line AND comment out the `ports:` block above
+    # (host mode publishes directly). Bridge mode still works via IP + the QR
+    # card's fallback URL, but scout.local won't resolve from other devices.
+    # network_mode: host
     depends_on:
       sdk:
         condition: service_healthy

@@ -60,3 +60,64 @@ make dashboard-tls
 ## Multi-admin
 Settings drawer → **🔑 Admin passkeys**: enroll a teammate's device, rename, or
 revoke. The last passkey can't be removed (would lock everyone out).
+
+---
+
+# 🎫 Field setup kit (mDNS + mkcert + QR)
+
+Three pieces make "scan & drive" work in the field:
+
+## 1. mDNS — `scout.local` resolves automatically
+The dashboard advertises itself as **`scout.local`** on the LAN (pure-Python
+zeroconf, auto-started). macOS/iOS/Windows10+/most Linux resolve `.local` with
+zero client config. No more per-device `/etc/hosts` edits.
+
+```bash
+make mdns        # standalone test
+# auto-runs inside the dashboard; name via SCOUT_MDNS_NAME (default 'scout')
+```
+
+> **Docker:** mDNS needs to reach the LAN, so run the dashboard with
+> `network_mode: host` (commented hint in `docker-compose.yml`). In bridge mode
+> the IP-fallback URL on the QR card still works; `scout.local` just won't
+> resolve from other devices.
+
+## 2. mkcert — trusted cert, NO browser warning (optional)
+Self-signed works but shows a one-time warning. For a polished fleet, install
+mkcert's local CA on your team's machines — then scout's cert is *trusted*:
+
+```bash
+make mkcert-install     # installs mkcert + trusts a local CA
+make dashboard-tls      # tls.py auto-detects mkcert → trusted cert, no warning
+```
+
+`tls.py` priority: `DASH_TLS_CERT/KEY` → **mkcert** (if installed) → self-signed.
+Opt out with `DASH_TLS_MKCERT=off`.
+
+## 3. Printable QR card — scan to enroll
+Generates a QR + printable card pointing at `https://scout.local:PORT`:
+
+```bash
+make field-card                          # prints ASCII QR + writes PNG/HTML
+BOOTSTRAP=field-secret make field-card   # embeds the one-time setup token
+```
+Outputs to `.scout_tls/`:
+- `field_setup_qr.png` — the QR image
+- `field_setup.html` — a printable card (open → 🖨️ Print, or screenshot)
+
+Live, always-current card is also served at **`/field-card`** (public — it only
+contains the access URL + whatever bootstrap token you chose to embed).
+
+### Field flow
+1. Power on scout → dashboard advertises `scout.local`, mints its cert.
+2. Print/show the card (`make field-card` or open `/field-card`).
+3. Teammate joins the same Wi-Fi → scans QR → accepts cert once (or zero
+   warnings if their machine trusts the mkcert CA) → enrols passkey.
+4. Driving. 🛞
+
+### New env
+| var | default | meaning |
+|---|---|---|
+| `SCOUT_MDNS` | `true` | advertise scout.local on the LAN |
+| `SCOUT_MDNS_NAME` | `scout` | advertised name (→ `<name>.local`) |
+| `DASH_TLS_MKCERT` | `auto` | use mkcert if installed (`off` to disable) |

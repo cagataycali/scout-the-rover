@@ -40,6 +40,27 @@ dashboard-tls: venv ## start the dashboard over HTTPS (self-signed) so WebAuthn 
 	@echo "🔒 dashboard (HTTPS) → https://localhost:$${DASH_PORT:-8443}  — accept the self-signed warning once"
 	@DASH_TLS=true DASH_PORT=$${DASH_PORT:-8443} $(PY) dashboard_server.py
 
+.PHONY: field-card
+field-card: venv ## generate a printable QR setup card (scan to enroll a passkey)
+	@DASH_TLS=$${DASH_TLS:-true} DASH_PORT=$${DASH_PORT:-8080} $(PY) field_setup.py $${BOOTSTRAP:+--bootstrap $$BOOTSTRAP}
+
+.PHONY: mkcert-install
+mkcert-install: ## install mkcert + a locally-trusted CA (no browser warning)
+	@command -v mkcert >/dev/null 2>&1 || { \
+	  echo "📦 installing mkcert…"; \
+	  if command -v brew >/dev/null 2>&1; then brew install mkcert nss; \
+	  elif command -v apt-get >/dev/null 2>&1; then \
+	    sudo apt-get update && sudo apt-get install -y libnss3-tools wget && \
+	    wget -qO /tmp/mkcert "https://dl.filippo.io/mkcert/latest?for=linux/amd64" && \
+	    sudo install /tmp/mkcert /usr/local/bin/mkcert; \
+	  else echo "❌ install mkcert manually: https://github.com/FiloSottile/mkcert"; exit 1; fi; }
+	@mkcert -install
+	@echo "✅ mkcert CA installed. Run 'make dashboard-tls' — certs will be trusted (no warning)."
+
+.PHONY: mdns
+mdns: venv ## advertise scout.local on the LAN (standalone test)
+	@SCOUT_MDNS=true $(PY) scout_mdns.py
+
 .PHONY: sdk
 sdk: $(SDK_DIR)/.cloned ## clone + setup earth-rovers-sdk (our fork)
 

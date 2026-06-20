@@ -11,3 +11,5 @@ uvicorn>=0.30
 webauthn>=2.0
 PyJWT>=2.8
 cryptography>=42
+qrcode[pil]>=8.0
+zeroconf>=0.140

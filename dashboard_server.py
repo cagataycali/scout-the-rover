@@ -191,7 +191,7 @@ async def auth_credentials_delete(request: Request):
 # valid session. Public allowlist: the auth ceremony, static assets, the page
 # shell (so the login screen can load), and nothing that touches the rover.
 _PUBLIC_PREFIXES = ("/auth/", "/css/", "/js/")
-_PUBLIC_EXACT = {"/", "/replay", "/favicon.ico", "/api/health"}
+_PUBLIC_EXACT = {"/", "/replay", "/field-card", "/favicon.ico", "/api/health"}
 
 
 @app.middleware("http")
@@ -707,6 +707,22 @@ async def replay_page():
     return JSONResponse({"error": "docs/replay.html not found"}, status_code=404)
 
 
+@app.get("/field-card")
+async def field_card():
+    """Printable QR field-setup card (public — it's just the access URL).
+    Regenerated on each request so it always reflects the live host/port."""
+    try:
+        import field_setup
+        out_dir = Path(os.getenv("DASH_TLS_DIR", "./.scout_tls"))
+        url = field_setup.default_url()
+        bootstrap = os.getenv("SCOUT_AUTH_BOOTSTRAP_TOKEN", "")
+        trusted = os.getenv("DASH_TLS_MKCERT", "auto").lower() not in ("0", "false", "no", "off")
+        res = field_setup.build(url, out_dir.resolve(), bootstrap=bootstrap, trusted=trusted)
+        return FileResponse(res["html"], media_type="text/html")
+    except Exception as e:
+        return JSONResponse({"error": f"field card unavailable: {e}"}, status_code=500)
+
+
 @app.get("/")
 async def index():
     idx = DOCS / "index.html"
@@ -744,5 +760,13 @@ if __name__ == "__main__":
     else:
         print(f"🛞 scout dashboard → http://localhost:{DASH_PORT}  (SDK: {ROVER_SDK_URL})")
         print("   ↑ HTTP: passkeys only work on localhost. For LAN/IP access set DASH_TLS=true.")
+
+    # 📡 Advertise scout.local on the LAN so phones/laptops resolve a hostname
+    # (WebAuthn rpId needs a name, not a raw IP). Best-effort.
+    try:
+        import scout_mdns
+        scout_mdns.start()
+    except Exception as _e:
+        print(f"⚠️  mDNS skipped: {_e}", flush=True)
 
     uvicorn.run(app, host=DASH_HOST, port=DASH_PORT, log_level="info", **ssl_kwargs)

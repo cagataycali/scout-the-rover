@@ -65,6 +65,11 @@ def _hostnames() -> List[str]:
         names.add(socket.getfqdn())
     except Exception:
         pass
+    # always include the mDNS name we advertise (scout.local) so the cert is
+    # valid for the hostname WebAuthn actually uses.
+    mdns = os.getenv("SCOUT_MDNS_NAME", "scout").strip().rstrip(".")
+    if mdns:
+        names.add(f"{mdns}.local")
     # allow operator to pin extra names (e.g. a private domain or mDNS .local)
     extra = os.getenv("DASH_TLS_HOSTS", "").strip()
     if extra:
@@ -139,12 +144,53 @@ def _cert_still_valid(cert_path: Path) -> bool:
         return False
 
 
+def _try_mkcert(tls_dir: Path) -> Optional[Tuple[str, str]]:
+    """If mkcert is installed, mint a LOCALLY-TRUSTED cert (no browser warning).
+
+    mkcert installs a local CA into the OS/browser trust stores; certs it issues
+    are trusted on machines that ran `mkcert -install`. Great for a team laptop
+    fleet. Controlled by DASH_TLS_MKCERT (default 'auto' = use if present).
+    """
+    import shutil
+    import subprocess
+
+    mode = os.getenv("DASH_TLS_MKCERT", "auto").strip().lower()
+    if mode in ("0", "false", "no", "off"):
+        return None
+    mkcert = shutil.which("mkcert")
+    if not mkcert:
+        if mode in ("1", "true", "yes", "on"):
+            print("⚠️  DASH_TLS_MKCERT requested but mkcert not found in PATH")
+        return None
+
+    cert_path = tls_dir / "scout-mkcert.pem"
+    key_path = tls_dir / "scout-mkcert-key.pem"
+    if cert_path.exists() and key_path.exists() and _cert_still_valid(cert_path):
+        return str(cert_path), str(key_path)
+
+    names = _hostnames() + _local_ips()
+    try:
+        # ensure local CA is installed (idempotent; needs to have been trusted once)
+        subprocess.run([mkcert, "-install"], check=False, capture_output=True, timeout=30)
+        cmd = [mkcert, "-cert-file", str(cert_path), "-key-file", str(key_path)] + names
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        if r.returncode == 0 and cert_path.exists():
+            print(f"🔒 mkcert: locally-trusted cert minted (no browser warning on trusting machines)")
+            print(f"   SANs: {', '.join(names)}")
+            return str(cert_path), str(key_path)
+        print(f"⚠️  mkcert failed ({r.returncode}); falling back to self-signed: {r.stderr.strip()[:200]}")
+    except Exception as e:
+        print(f"⚠️  mkcert error; falling back to self-signed: {e}")
+    return None
+
+
 def ensure_cert() -> Optional[Tuple[str, str]]:
     """Return (cert_path, key_path) for the dashboard, or None if TLS is off.
 
     Priority:
       1. DASH_TLS_CERT + DASH_TLS_KEY  → use the operator-supplied cert as-is.
-      2. else auto-generate a cached self-signed cert (regenerated if expired).
+      2. mkcert (locally-trusted, no warning) if installed & DASH_TLS_MKCERT!=off.
+      3. else auto-generate a cached self-signed cert (regenerated if expired).
     """
     if os.getenv("DASH_TLS", "false").strip().lower() not in ("1", "true", "yes", "on"):
         return None
@@ -154,13 +200,19 @@ def ensure_cert() -> Optional[Tuple[str, str]]:
     if cert_env and key_env:
         if Path(cert_env).exists() and Path(key_env).exists():
             return cert_env, key_env
-        print(f"⚠️  DASH_TLS_CERT/KEY set but file(s) missing — falling back to self-signed")
+        print(f"⚠️  DASH_TLS_CERT/KEY set but file(s) missing — falling back")
 
     tls_dir = Path(os.getenv("DASH_TLS_DIR", "./.scout_tls")).resolve()
     tls_dir.mkdir(parents=True, exist_ok=True)
+
+    # 2. mkcert (trusted, no warning) — opt-out via DASH_TLS_MKCERT=off
+    mk = _try_mkcert(tls_dir)
+    if mk:
+        return mk
+
+    # 3. self-signed fallback
     cert_path = tls_dir / "scout-cert.pem"
     key_path = tls_dir / "scout-key.pem"
-
     if not (cert_path.exists() and key_path.exists() and _cert_still_valid(cert_path)):
         print("🔒 generating self-signed TLS cert for WebAuthn (hostnames + LAN IPs)…")
         _generate_self_signed(cert_path, key_path)
