@@ -2,54 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#0a0a0f" />
 <title>scout · replay</title>
 <link rel="stylesheet" href="css/style.css" />
-<style>
-  body{font-family:system-ui,-apple-system,sans-serif;color:#e8e8f0}
-  .rwrap{max-width:1100px;margin:0 auto;padding:16px}
-  .rhead{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-  .rhead h1{font-size:18px;margin:0;display:flex;gap:8px;align-items:center}
-  select,button{background:rgba(255,255,255,.06);color:#e8e8f0;border:1px solid rgba(255,255,255,.14);
-    border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer}
-  .rgrid{display:grid;grid-template-columns:1fr 360px;gap:16px}
-  @media(max-width:860px){.rgrid{grid-template-columns:1fr}}
-  .panel{background:rgba(20,20,30,.55);border:1px solid rgba(255,255,255,.10);border-radius:16px;
-    padding:14px;backdrop-filter:blur(12px)}
-  video{width:100%;border-radius:12px;background:#000;display:block}
-  .vlabel{font-size:12px;opacity:.6;margin:6px 0 2px}
-  .scrub{width:100%;margin:10px 0 4px}
-  .timerow{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;font-size:13px;opacity:.8}
-  .controls{display:flex;gap:8px;align-items:center;margin-top:8px}
-  .graph{width:100%;height:90px;display:block;margin-top:10px;border-radius:8px;background:rgba(0,0,0,.25)}
-  .eplist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
-  .epitem{padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.04);cursor:pointer;font-size:13px;
-    border:1px solid transparent}
-  .epitem:hover{background:rgba(255,255,255,.08)}
-  .epitem.active{border-color:#6cf;background:rgba(100,200,255,.12)}
-  .epitem .et{opacity:.6;font-size:11px}
-  .events{max-height:420px;overflow:auto;display:flex;flex-direction:column;gap:4px;margin-top:8px}
-  .ev{padding:6px 9px;border-radius:8px;font-size:12.5px;cursor:pointer;border-left:3px solid #555;
-    background:rgba(255,255,255,.03);line-height:1.35}
-  .ev:hover{background:rgba(255,255,255,.08)}
-  .ev.active{background:rgba(100,200,255,.16)}
-  .ev .et{opacity:.55;font-variant-numeric:tabular-nums;margin-right:6px}
-  .ev .badge{font-size:10px;padding:1px 6px;border-radius:6px;margin-right:5px;text-transform:uppercase;letter-spacing:.3px}
-  .ev-reasoning{border-left-color:#7cf}    .b-reasoning{background:#1d3a4a}
-  .ev-tool_use{border-left-color:#fc6}     .b-tool_use{background:#4a3a10}
-  .ev-tool_result{border-left-color:#9c6}  .b-tool_result{background:#2a3a10}
-  .ev-user_input{border-left-color:#c9f}   .b-user_input{background:#3a1d4a}
-  .ev-assistant_end{border-left-color:#aaa}.b-assistant_end{background:#333}
-  a.back{opacity:.7;text-decoration:none;color:#9cf;font-size:13px}
-  .telem{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px;margin-top:10px}
-  .tcell{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:9px;padding:6px 8px}
-  .tcell .tk{font-size:10px;opacity:.55;text-transform:uppercase;letter-spacing:.3px}
-  .tcell .tv{font-size:14px;font-variant-numeric:tabular-nums;margin-top:2px}
-  .tcell.warn{border-color:rgba(255,120,120,.5);background:rgba(255,80,80,.10)}
-  .tcell .tv small{opacity:.5;font-size:10px;margin-left:2px}
-</style>
 </head>
-<body>
+<body class="replay">
+<div class="aurora"></div>
+<div class="stars"></div>
+<div class="stars2"></div>
+<div class="stars3"></div>
+
 <!-- 🔐 auth gate -->
 <div class="auth-gate hidden" id="authGate">
   <div class="auth-card glass" id="authCard">
@@ -66,54 +31,62 @@
   </div>
 </div>
 
-<div class="aurora"></div>
-<div class="rwrap">
-  <div class="rhead">
-    <h1>🎞️ scout replay</h1>
-    <a class="back" href="/">← live</a>
-    <select id="dsSel"></select>
-    <span id="dsInfo" style="opacity:.6;font-size:13px"></span>
+<!-- top status bar (matches index.html design) -->
+<header class="topbar glass">
+  <div class="brand">
+    <span class="logo">🎞️</span>
+    <div class="brand-txt">
+      <strong>scout</strong>
+      <small>replay</small>
+    </div>
   </div>
+  <div class="rtools">
+    <a class="rback" href="/">← live</a>
+    <select id="dsSel"></select>
+    <span class="ds-info" id="dsInfo"></span>
+  </div>
+</header>
 
+<div class="rwrap">
   <div class="rgrid">
+    <!-- video + scrubber + graph + telemetry -->
     <div>
-      <div class="panel">
-        <video id="vid" preload="auto" playsinline></video>
+      <div class="rpanel">
+        <video id="vid" class="rvideo" preload="auto" playsinline></video>
         <div class="vlabel" id="vlabel">front</div>
         <input class="scrub" id="scrub" type="range" min="0" max="1000" value="0" step="1" />
         <div class="timerow"><span id="tCur">0.00s</span><span id="tDur">0.00s</span></div>
-        <div class="controls">
-          <button id="btnPlay">▶︎ play</button>
-          <button id="btnView">⇆ rear</button>
-          <button id="btnSpeed">1×</button>
-          <span style="opacity:.6;font-size:12px" id="frameLbl">frame 0</span>
+        <div class="rcontrols">
+          <button class="rbtn" id="btnPlay">▶︎ play</button>
+          <button class="rbtn" id="btnView">⇆ rear</button>
+          <button class="rbtn" id="btnSpeed">1×</button>
+          <span class="frame-lbl" id="frameLbl">frame 0</span>
         </div>
         <canvas class="graph" id="graph"></canvas>
-        <div style="font-size:11px;opacity:.55;margin-top:4px">
-          ▮ linear &nbsp; ▮ angular &nbsp; ▮ speed(state) &nbsp;— click graph or events to seek
+        <div class="glegend">
+          <b class="l1">▮ linear</b> &nbsp; <b class="l2">▮ angular</b> &nbsp; <b class="l3">▮ speed</b>
+          &nbsp;— click graph or events to seek
         </div>
         <div class="telem" id="telem"></div>
       </div>
     </div>
 
+    <!-- side rail: episodes · memory search · reasoning -->
     <div>
-      <div class="panel">
-        <strong style="font-size:13px;opacity:.8">episodes</strong>
+      <div class="rpanel">
+        <h2>episodes</h2>
         <div class="eplist" id="eplist"></div>
       </div>
-      <div class="panel" style="margin-top:12px">
-        <strong style="font-size:13px;opacity:.8">🔎 memory search</strong>
-        <div style="display:flex;gap:6px;margin-top:8px">
-          <input id="memQ" type="text" placeholder="find a chair, doorway, the G1…"
-                 style="flex:1;background:rgba(255,255,255,.06);color:#e8e8f0;
-                        border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:8px 10px;font-size:13px" />
-          <button id="memGo">go</button>
+      <div class="rpanel">
+        <h2>🔎 memory search</h2>
+        <div style="display:flex;gap:6px">
+          <input id="memQ" class="rinput" type="text" placeholder="find a chair, doorway, the G1…" />
+          <button class="rbtn" id="memGo">go</button>
         </div>
-        <div class="events" id="memHits" style="max-height:240px"></div>
+        <div class="events" id="memHits" style="max-height:34vh"></div>
       </div>
-
-      <div class="panel" style="margin-top:12px">
-        <strong style="font-size:13px;opacity:.8">🧠 reasoning timeline</strong>
+      <div class="rpanel">
+        <h2>🧠 reasoning timeline</h2>
         <div class="events" id="events"></div>
       </div>
     </div>

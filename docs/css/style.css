@@ -510,3 +510,103 @@ body.locked { overflow: hidden; }
   .pill { padding: 4px 7px; font-size: 11px; }
   .topbar .icon-btn { width: 36px; height: 36px; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   🎞️  REPLAY PAGE  — uses the shared design system (tokens, glass, topbar).
+   Unlike the live app (a fixed full-viewport shell), replay is a SCROLLABLE
+   document, so we opt this page out of the body `overflow:hidden` lock.
+   Activated by <body class="replay">.
+   ════════════════════════════════════════════════════════════════════════ */
+/* auth gate must still block scroll even on the replay page (higher specificity
+   so it wins over body.replay's overflow:auto regardless of source order) */
+body.replay.locked { overflow: hidden; }
+
+body.replay {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  min-height: 100%;
+}
+body.replay .rwrap {
+  position: relative; z-index: 4;
+  max-width: 1180px; margin: 0 auto;
+  padding: 10px 12px calc(28px + var(--safe-bot));
+}
+/* replay topbar: reuse .topbar/.glass; add a back link + dataset selector */
+body.replay .rtools { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-wrap: wrap; }
+body.replay .rtools select {
+  background: var(--glass-strong); color: var(--txt);
+  border: 1px solid var(--glass-brd); border-radius: var(--radius-sm);
+  padding: 8px 12px; font-size: 13px; cursor: pointer; max-width: 60vw;
+}
+body.replay .ds-info { font-size: 12px; color: var(--txt-dim); white-space: nowrap; }
+
+/* layout: video column + side rail; stacks on mobile */
+.rgrid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 12px; }
+@media (min-width: 900px) { .rgrid { grid-template-columns: 1fr 380px; align-items: start; } }
+
+.rpanel {
+  background: var(--glass); backdrop-filter: blur(var(--blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
+  border: 1px solid var(--glass-brd); border-radius: var(--radius);
+  padding: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.rpanel + .rpanel { margin-top: 14px; }
+.rpanel h2 { font-size: 13px; font-weight: 700; letter-spacing: .3px; color: var(--txt-dim);
+  text-transform: uppercase; margin-bottom: 8px; }
+
+.rvideo { width: 100%; border-radius: var(--radius-sm); background: #000; display: block; aspect-ratio: 4/3; }
+.vlabel { font-size: 12px; color: var(--txt-dim); margin: 8px 0 2px; }
+.scrub { width: 100%; margin: 10px 0 4px; accent-color: var(--accent); }
+.timerow { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--txt-dim); }
+.rcontrols { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.rbtn {
+  background: var(--glass-strong); color: var(--txt); border: 1px solid var(--glass-brd);
+  border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: transform .15s, background .2s;
+}
+.rbtn:active { transform: scale(0.93); }
+.frame-lbl { font-size: 12px; color: var(--txt-dim); margin-left: auto; }
+
+.graph { width: 100%; height: 96px; display: block; margin-top: 12px; border-radius: var(--radius-sm); background: rgba(0,0,0,.28); }
+.glegend { font-size: 11px; color: var(--txt-dim); margin-top: 6px; }
+.glegend b.l1 { color: var(--accent); } .glegend b.l2 { color: var(--amber); } .glegend b.l3 { color: var(--green); }
+
+/* telemetry strip */
+.telem { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px; margin-top: 12px; }
+.tcell { background: var(--glass-strong); border: 1px solid var(--glass-brd); border-radius: var(--radius-sm); padding: 7px 9px; }
+.tcell .tk { font-size: 10px; color: var(--txt-dim); text-transform: uppercase; letter-spacing: .3px; }
+.tcell .tv { font-size: 14px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tcell .tv small { color: var(--txt-dim); font-size: 10px; margin-left: 2px; }
+.tcell.warn { border-color: var(--red); background: rgba(255,93,108,.12); color: var(--red); }
+
+/* episode list */
+.eplist { display: flex; flex-direction: column; gap: 6px; }
+.epitem { padding: 9px 11px; border-radius: var(--radius-sm); background: var(--glass-strong);
+  cursor: pointer; font-size: 13px; border: 1px solid transparent; transition: background .15s, border-color .15s; }
+.epitem:active { transform: scale(0.99); }
+.epitem.active { border-color: var(--accent); background: rgba(46,230,214,.12); }
+.epitem .et { color: var(--txt-dim); font-size: 11px; margin-top: 2px; }
+
+/* memory search + reasoning event lists */
+.rinput {
+  flex: 1; background: var(--glass-strong); color: var(--txt);
+  border: 1px solid var(--glass-brd); border-radius: var(--radius-sm); padding: 9px 12px; font-size: 13px;
+}
+.events { max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column; gap: 5px; margin-top: 8px; overscroll-behavior: contain; }
+.ev { padding: 7px 10px; border-radius: var(--radius-sm); font-size: 12.5px; cursor: pointer;
+  border-left: 3px solid #555; background: var(--glass); line-height: 1.4; }
+.ev:active { background: var(--glass-strong); }
+.ev.active { background: rgba(46,230,214,.16); }
+.ev .et { color: var(--txt-dim); font-variant-numeric: tabular-nums; margin-right: 6px; }
+.ev .badge { font-size: 10px; padding: 1px 6px; border-radius: 6px; margin-right: 5px;
+  text-transform: uppercase; letter-spacing: .3px; }
+.ev-reasoning   { border-left-color: var(--accent); }     .b-reasoning   { background: rgba(46,230,214,.18); }
+.ev-tool_use    { border-left-color: var(--amber); }       .b-tool_use    { background: rgba(255,194,74,.18); }
+.ev-tool_result { border-left-color: var(--green); }       .b-tool_result { background: rgba(48,209,168,.18); }
+.ev-user_input  { border-left-color: #c79bff; }            .b-user_input  { background: rgba(199,155,255,.18); }
+.ev-assistant_end { border-left-color: #aaa; }             .b-assistant_end { background: rgba(170,170,170,.18); }
+
+a.rback { color: var(--accent); text-decoration: none; font-size: 13px; opacity: .85; white-space: nowrap; }
+a.rback:active { opacity: 1; }
