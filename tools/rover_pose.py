@@ -148,6 +148,40 @@ class _Pose:
 POSE = _Pose()
 
 
+# ── Calibration persistence ─────────────────────────────────────────────────
+_CAL_FILE = Path(os.getenv("SCOUT_CAL_FILE",
+                           str(Path(__file__).resolve().parent.parent / ".scout_calibration.json")))
+
+
+def _load_calibration() -> None:
+    """Load learned LIN/ANG speed constants from disk, if present."""
+    global LIN_SPEED_MAX, ANG_SPEED_MAX
+    try:
+        if _CAL_FILE.exists():
+            import json as _json
+            d = _json.loads(_CAL_FILE.read_text())
+            if "lin_speed_max" in d:
+                LIN_SPEED_MAX = float(d["lin_speed_max"])
+            if "ang_speed_max" in d:
+                ANG_SPEED_MAX = float(d["ang_speed_max"])
+    except Exception:
+        pass
+
+
+def _save_calibration() -> None:
+    try:
+        import json as _json
+        _CAL_FILE.write_text(_json.dumps(
+            {"lin_speed_max": round(LIN_SPEED_MAX, 4),
+             "ang_speed_max": round(ANG_SPEED_MAX, 4)}))
+    except Exception:
+        pass
+
+
+# load any previously-learned constants at import
+_load_calibration()
+
+
 def integrate_move(linear: float, angular: float, duration: float,
                    imu_orientation: Optional[float] = None) -> None:
     """Public hook for motion tools to feed executed segments into the pose."""
@@ -213,7 +247,9 @@ def pose_block() -> str:
 
 @tool
 def rover_pose(action: str = "get",
-               x: float = 0.0, y: float = 0.0, yaw_deg: float = 0.0) -> Dict[str, Any]:
+               x: float = 0.0, y: float = 0.0, yaw_deg: float = 0.0,
+               linear: float = 0.0, angular: float = 0.0,
+               duration: float = 1.0, measured: float = None) -> Dict[str, Any]:
     """🧭 Scout's estimated position in the room (dead-reckoning localization).
 
     Scout maintains a best-guess {x, y, yaw} in the RoomPlan map's coordinate
@@ -228,6 +264,10 @@ def rover_pose(action: str = "get",
                 you physically place Scout at a recognizable spot, or when a
                 camera view lets you confidently match the map.
         reset → forget the pose (mark un-seeded).
+        calibrate → tune motion constants from a measured drive. Pass the
+                linear/angular command + duration you used, and measured =
+                actual meters driven (linear) or degrees turned (angular).
+                Back-solves         reset → forget the pose (mark un-seeded). saves LIN/ANG_SPEED_MAX so dead-reckoning is accurate.
 
     Args:
         action: "get" | "seed" | "reset".
@@ -251,6 +291,41 @@ def rover_pose(action: str = "get",
         POSE.seeded = False
         POSE._save()
         return {"status": "success", "content": [{"text": "🧭 Pose reset (un-seeded)."}]}
+    if action == "calibrate":
+        # Back-solve a speed constant from a known commanded move vs measured result.
+        # Usage:
+        #   linear calib: rover_pose(action='calibrate', linear=<cmd>, duration=<s>,
+        #                            measured=<actual meters driven>)
+        #   angular calib: rover_pose(action='calibrate', angular=<cmd>, duration=<s>,
+        #                             measured=<actual degrees turned>)
+        global LIN_SPEED_MAX, ANG_SPEED_MAX
+        if measured is None or measured <= 0:
+            return error_result(
+                "calibrate needs measured>0: meters driven (for linear) or "
+                "degrees turned (for angular). Also pass the linear/angular command "
+                "and duration you used.")
+        dur = max(0.1, float(duration))
+        if angular and not linear:
+            # ANG_SPEED_MAX so that |angular|*ANG*dur == radians(measured)
+            import math as _m
+            rad = _m.radians(float(measured))
+            new_ang = rad / (abs(float(angular)) * dur)
+            old = ANG_SPEED_MAX
+            ANG_SPEED_MAX = new_ang
+            _save_calibration()
+            return {"status": "success", "content": [{"text":
+                f"🎯 Angular calibrated: ANG_SPEED_MAX {old:.3f} → {new_ang:.3f} rad/s "
+                f"(turned {measured}° on angular={angular} for {dur}s). Saved."}]}
+        else:
+            # LIN_SPEED_MAX so that |linear|*LIN*dur == measured meters
+            new_lin = float(measured) / (abs(float(linear) or 1.0) * dur)
+            old = LIN_SPEED_MAX
+            LIN_SPEED_MAX = new_lin
+            _save_calibration()
+            return {"status": "success", "content": [{"text":
+                f"🎯 Linear calibrated: LIN_SPEED_MAX {old:.3f} → {new_lin:.3f} m/s "
+                f"(drove {measured}m on linear={linear} for {dur}s). Saved."}]}
+
     # get
     s = POSE.snapshot()
     near = _nearest_objects(s["x"], s["y"]) if s["seeded"] else []

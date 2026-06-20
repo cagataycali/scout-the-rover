@@ -31,3 +31,4 @@ yolov8n.pt
 
 .env.bak.*
 .scout_pose.json
+.scout_calibration.json

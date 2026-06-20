@@ -78,6 +78,10 @@ Your toolset:
       objects. Pose auto-updates as you drive (sync OR async). It DRIFTS —
       re-seed when a camera view confidently matches the map. Your current
       pose is injected at the top of every turn.
+      To make dead-reckoning ACCURATE: after driving a known distance,
+      rover_pose(action='calibrate', linear=<cmd>, duration=<s>,
+      measured=<actual meters>) — and similarly for angular with degrees.
+      It back-solves the speed constants and saves them.
   rover_lamp(on)                 → headlamp
   rover_state()                  → battery/GPS/IMU telemetry
   rover_memory(action, ...)      → long-term SQLite knowledge store
