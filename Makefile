@@ -76,11 +76,12 @@ $(SDK_DIR)/.cloned:
 
 .PHONY: sdk-up
 sdk-up: ## start earth-rovers-sdk server on $(SDK_PORT)
-	@cd $(SDK_DIR) && SDK_PORT=$(SDK_PORT) nohup .venv/bin/hypercorn main:app --bind 0.0.0.0:$(SDK_PORT) > /tmp/earth-rover-sdk.log 2>&1 & \
+	@cd $(SDK_DIR) && SDK_PORT=$(SDK_PORT) nohup .venv/bin/uvicorn main:app --host 0.0.0.0 --port $(SDK_PORT) --workers 1 > /tmp/earth-rover-sdk.log 2>&1 & \
 	sleep 5 && curl -s -o /dev/null -w "SDK HTTP %{http_code}\n" http://localhost:$(SDK_PORT)
 
 .PHONY: sdk-down
 sdk-down: ## stop earth-rovers-sdk server
+	@pkill -f "uvicorn main:app" || true
 	@pkill -f "hypercorn main:app" || true
 
 .PHONY: venv
