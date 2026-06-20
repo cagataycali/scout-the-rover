@@ -140,12 +140,29 @@ window.ScoutAuth = ScoutAuth;
 window.SCOUT_TOKEN = ScoutAuth.getToken();
 
 // ---- gate UI ----
-(async function gate() {
-  if (!('credentials' in navigator) || !navigator.credentials.create) {
-    // browser without WebAuthn — surface a clear message but don't hard-block
-    console.warn('WebAuthn not supported by this browser');
-  }
+// WebAuthn is ONLY available in a secure context: https:// or http://localhost.
+// On plain http://<ip|host> the browser makes navigator.credentials undefined
+// (Firefox especially). Detect that early so we never call .create() and crash.
+function webauthnReady() {
+  return (
+    window.isSecureContext === true &&
+    typeof navigator !== 'undefined' &&
+    navigator.credentials &&
+    typeof navigator.credentials.create === 'function' &&
+    typeof window.PublicKeyCredential !== 'undefined'
+  );
+}
 
+function httpsUpgradeUrl() {
+  // suggest the same host over https on the configured/likely TLS port
+  try {
+    const u = new URL(location.href);
+    u.protocol = 'https:';
+    return u.toString();
+  } catch (_) { return 'https://' + location.host + location.pathname; }
+}
+
+(async function gate() {
   const overlay = document.getElementById('authGate');
   const card = document.getElementById('authCard');
   const msg = document.getElementById('authMsg');
@@ -193,6 +210,33 @@ window.SCOUT_TOKEN = ScoutAuth.getToken();
 
   document.body.classList.add('locked');
   show();
+
+  // 🚫 Hard guard: no WebAuthn here (insecure context) → explain, don't crash.
+  if (!webauthnReady()) {
+    const insecure = window.isSecureContext !== true;
+    titleEl.textContent = '🔒 HTTPS required';
+    if (insecure) {
+      const host = location.hostname;
+      subEl.innerHTML =
+        'Passkeys need a secure connection. You\'re on <b>' + location.protocol + '//' +
+        location.host + '</b>.<br><br>Open this dashboard over <b>HTTPS</b> instead:' +
+        '<br>• <code>https://' + host + ':' + (location.port || '8080') + '</code>' +
+        (host !== 'localhost' ? '<br>• or use <code>https://scout.local:' + (location.port || '8080') + '</code>' : '') +
+        '<br><br>On iPhone/Android you may also need to trust the rover CA first — open <b>/trust</b>.';
+      subEl.style.color = '#ffb454';
+      const link = httpsUpgradeUrl();
+      btnPrimary.textContent = '↗ Reload over HTTPS';
+      btnPrimary.disabled = false;
+      btnPrimary.onclick = () => { location.href = link; };
+      setMsg('navigator.credentials is unavailable on insecure origins.', true);
+    } else {
+      subEl.textContent = 'This browser does not support WebAuthn passkeys. Try a recent Chrome, Safari, Edge, or Firefox.';
+      subEl.style.color = '#ffb454';
+      btnPrimary.disabled = true;
+      btnPrimary.textContent = 'unsupported';
+    }
+    return; // do NOT wire the passkey ceremony
+  }
 
   const mode = st.setup_required ? 'setup' : 'login';
 
