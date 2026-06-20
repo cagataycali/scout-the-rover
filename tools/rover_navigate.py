@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 from strands import tool
 
 from ._rover_common import error_result, ok_result, sdk_get, b64_to_image_block, apply_turn_sign
+from .rover_pose import integrate_move
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,11 @@ def _drive_step(linear: float, angular: float, duration: float) -> int:
         elif remaining > 0:
             time.sleep(remaining)
     _send_control(0.0, 0.0)  # per-step auto-stop
+    # 🧭 feed executed segment into dead-reckoning pose estimate
+    try:
+        integrate_move(linear, angular, duration)
+    except Exception:
+        pass
     return sends
 
 

@@ -30,3 +30,4 @@ yolov8n.pt
 .scout_tls/
 
 .env.bak.*
+.scout_pose.json

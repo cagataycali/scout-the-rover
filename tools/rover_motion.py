@@ -16,6 +16,7 @@ from strands import tool
 
 from ._rover_common import b64_to_image_block, error_result, ok_result, sdk_get, sdk_post, apply_turn_sign
 from ._recorder_engine import ACTION_STATE
+from .rover_pose import integrate_move
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +111,11 @@ def rover_move(
             elif remaining > 0:
                 time.sleep(remaining)
         _send(0.0, 0.0)  # auto-stop
+        # 🧭 feed executed segment into dead-reckoning pose estimate
+        try:
+            integrate_move(linear, angular, duration)
+        except Exception:
+            pass
 
         after = _capture_views(both=both) if want_frames else []
         extra: list[dict] = []

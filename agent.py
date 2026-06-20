@@ -28,6 +28,8 @@ import memory as _memory
 from tools.voice_bridge import voice_say as _voice_say
 from tools.reasoning_log import ReasoningLoggerHook
 from tools.dataset_index import dataset_index_block
+from tools.room_map import build_map_block as _room_map_block
+from tools.rover_pose import pose_block as _pose_block
 
 BASE_PROMPT = """You are scout, a friendly Earth Rover Mini sidewalk robot.
 
@@ -60,6 +62,22 @@ Your toolset:
                                   steps=[{linear,angular,duration,pause,label}, ...]
                                   USE THIS for multi-segment journeys instead of N rover_move calls.
   rover_stop()                   → emergency stop
+  rover_async(action, steps, priority) → ⚡ NON-BLOCKING motion queue.
+      action='queue' enqueues [{linear,angular,duration,label}] and RETURNS
+      INSTANTLY — wheels keep turning in the background while you look/think
+      and queue the next leg. This is the SMOOTH/FLUID way to move: pipeline
+      legs instead of blocking on each one. action='status' to check queue,
+      action='stop' to clear+halt. Use rover_move only for a single careful
+      look-then-step; use rover_async for fluid multi-leg motion.
+  room_map(action)               → 🗺️ your PRIOR world model from the RoomPlan
+      scan (walls, rooms, furniture, doors). action='show'|'objects'|'rooms'.
+      The map is also injected at the TOP of every turn — you already see it.
+  rover_pose(action, x, y, yaw_deg) → 🧭 WHERE YOU ARE in the room (dead
+      reckoning). action='seed' when placed at a known spot (x,y meters,
+      yaw_deg: 0=+x,90=+y,CCW). action='get' for current estimate + nearest
+      objects. Pose auto-updates as you drive (sync OR async). It DRIFTS —
+      re-seed when a camera view confidently matches the map. Your current
+      pose is injected at the top of every turn.
   rover_lamp(on)                 → headlamp
   rover_state()                  → battery/GPS/IMU telemetry
   rover_memory(action, ...)      → long-term SQLite knowledge store
@@ -70,6 +88,16 @@ Your toolset:
       Recent turns are auto-injected (short-term); rover_memory is
       what scout chooses to KEEP forever.
   rover_speak(text)              → talk through the onboard speaker
+
+SPATIAL AWARENESS — you now have a room map + a position estimate:
+  • The ROOM MAP and your ESTIMATED POSE are injected at the top of every
+    turn. Use them: 'I'm at (+1.2,-0.4), the sofa is 1m to my left.'
+  • Plan routes using mapped doors/objects, but the map+pose are a PRIOR —
+    ALWAYS confirm against the live camera frames before committing a move.
+  • If pose isn't seeded, ask the operator where you are, or match a camera
+    view to the map and rover_pose(action='seed', ...).
+  • For fluid travel, queue legs with rover_async and re-check pose/camera
+    between queue calls instead of blocking on each rover_move.
 
 EFFICIENCY TIP: For any journey of >2 movements, use rover_navigate with all
 steps batched. Set look_every_n_steps=2 to get periodic camera frames so you
@@ -146,6 +174,19 @@ def live_state_block() -> str:
     except Exception as e:
         return f"## LIVE ROVER STATE: error reading telemetry ({e})\n"
 
+
+
+def spatial_block() -> str:
+    """Room map prior + current dead-reckoning pose for the system prompt."""
+    try:
+        mp = _room_map_block()
+    except Exception as e:
+        mp = f"## ROOM MAP: unavailable ({e})"
+    try:
+        ps = _pose_block()
+    except Exception as e:
+        ps = f"## ESTIMATED POSE: unavailable ({e})"
+    return f"{ps}\n{mp}"
 
 
 def live_camera_blocks(camera: str = "both") -> list:
@@ -336,7 +377,7 @@ def build_agent(extra_tools: Optional[list] = None) -> Agent:
     return Agent(
         tools=tools,
         system_prompt=(
-            f"{_memory.recall_block()}\n{live_state_block()}\n{BASE_PROMPT}\n"
+            f"{_memory.recall_block()}\n{live_state_block()}\n{spatial_block()}\n{BASE_PROMPT}\n"
             f"{cosmos_block}\n{dataset_block}"
         ),
         hooks=[ReasoningLoggerHook(agent_id="main")],
@@ -349,7 +390,7 @@ def main() -> None:
     if len(sys.argv) > 1:
         # one-shot
         prompt = " ".join(sys.argv[1:])
-        agent.system_prompt = f"{_memory.recall_block()}\n{live_state_block()}\n{BASE_PROMPT}"
+        agent.system_prompt = f"{_memory.recall_block()}\n{live_state_block()}\n{spatial_block()}\n{BASE_PROMPT}"
         _auto_recorder.begin_turn(prompt)
         _result = None
         try:
@@ -374,7 +415,7 @@ def main() -> None:
         if q.lower() in ("exit", "quit", "q"):
             break
         # Per-turn live state injection
-        agent.system_prompt = f"{_memory.recall_block()}\n{live_state_block()}\n{BASE_PROMPT}"
+        agent.system_prompt = f"{_memory.recall_block()}\n{live_state_block()}\n{spatial_block()}\n{BASE_PROMPT}"
         _auto_recorder.begin_turn(q)
         _result = None
         try:
