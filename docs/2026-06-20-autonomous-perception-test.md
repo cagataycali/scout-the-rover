@@ -39,3 +39,29 @@ container against the live rover.
   accepted → responsive, likely on charger. Camera served via /screenshot.
 - Rover is physically boxed in (under a desk, G1 behind) — motion tests limited
   to reasoning/refusal rather than actual driving for safety.
+
+## Additional cycles (4-5)
+4. **Dataset recording probe** — FIXED probe to use hub/screenshot fallback
+   (was refusing to start during /v2 outage).
+5. **YOLO backend** — PASS. Loads on CUDA, 0.63s/frame inference, empty dets
+   facing a wall. Both detector backends (yolo + locate) validated.
+
+## ⚠️ Known issues (pre-existing, NOT part of perception work — for follow-up)
+1. **LeRobot 0.5.1 + datasets 5.0.0 `action_age` save bug.** `add_frame`
+   REQUIRES `action_age` as an `np.ndarray` shape `(1,)`, but `save_episode`'s
+   `Dataset.from_dict` maps that feature to a scalar `Value('float32')` and
+   raises `only 0-dimensional arrays can be converted to Python scalars`.
+   Minimal repro confirmed. Fix options for a focused recorder PR:
+     - fold `action_age` into `observation.state` (drop the `(1,)` feature), or
+     - pin `datasets` to a version where `(1,)` features round-trip, or
+     - patch LeRobot's writer to squeeze `(1,)` → scalar before `from_dict`.
+   NOTE: `main/` has a 471-row episode saved earlier today, so the path worked
+   under whatever datasets version was active at creation time.
+2. **Capture loop yields 0 frames on the /screenshot fallback path** while the
+   rover's /v2 fast-frame path is down (likely a timing issue at fps cadence
+   with the slower screenshot render). The probe now succeeds but the per-frame
+   grab during the episode needs the same robustness; worth a focused look when
+   the rover's /v2 path is healthy (it self-heals on WebRTC reconnect).
+
+These do not affect the perception pipeline (hub → detector → agent prompt),
+which is fully verified.
