@@ -45,7 +45,14 @@ ENV_FILE = ROOT / ".env"
 
 load_dotenv(ENV_FILE)
 
-ROVER_SDK_URL = os.getenv("ROVER_SDK_URL", "http://localhost:8001").rstrip("/")
+def _resolve_sdk_url() -> str:
+    """Live SDK base URL. Re-reads env each call so the dashboard can change
+    the rover SDK port/host at runtime via /api/config without a restart."""
+    return os.getenv("ROVER_SDK_URL", "http://localhost:8002").rstrip("/")
+
+
+# Back-compat module global (snapshot at import; prefer _resolve_sdk_url()).
+ROVER_SDK_URL = _resolve_sdk_url()
 DASH_PORT = int(os.getenv("DASH_PORT", "8080"))
 DASH_HOST = os.getenv("DASH_HOST", "0.0.0.0")
 
@@ -255,13 +262,13 @@ async def ws_chat(ws: WebSocket):
 
 # SDK proxy helpers + endpoints (camera, telemetry, control, speak)
 def _sdk_get(path: str, **params) -> dict:
-    r = requests.get(f"{ROVER_SDK_URL}{path}", params=params, timeout=15)
+    r = requests.get(f"{_resolve_sdk_url()}{path}", params=params, timeout=15)
     r.raise_for_status()
     return r.json()
 
 
 def _sdk_post(path: str, payload: dict) -> dict:
-    r = requests.post(f"{ROVER_SDK_URL}{path}", json=payload, timeout=20)
+    r = requests.post(f"{_resolve_sdk_url()}{path}", json=payload, timeout=20)
     r.raise_for_status()
     try:
         return r.json()
@@ -269,10 +276,16 @@ def _sdk_post(path: str, payload: dict) -> dict:
         return {"ok": True}
 
 
+# Manual-drive (WASD/joystick) turn sign. Observed reversed on this rover, so
+# default -1. INDEPENDENT from the agent tools' ROVER_TURN_SIGN because the two
+# control paths were observed to behave differently. Override via DASH_TURN_SIGN.
+TURN_SIGN = float(os.getenv("DASH_TURN_SIGN", "-1"))
+
+
 async def _sdk_control(linear: float, angular: float, duration: float):
     """Stream a clamped control command to the rover for `duration`s, then stop."""
     linear = max(-1.0, min(1.0, linear))
-    angular = max(-1.0, min(1.0, angular))
+    angular = max(-1.0, min(1.0, angular)) * TURN_SIGN
     cmd = {"command": {"linear": linear, "angular": angular}}
     end = time.time() + max(0.05, min(duration, 3.0))
     try:
@@ -370,7 +383,7 @@ async def api_config():
         "voice_provider": os.getenv("VOICE_PROVIDER", "openai"),
         "voice_name": os.getenv("VOICE_NAME", ""),
         "env": masked,
-        "rover_sdk_url": ROVER_SDK_URL,
+        "rover_sdk_url": _resolve_sdk_url(),
     }
 
 
@@ -400,6 +413,17 @@ async def api_config_update(request: Request):
         if ENV_FILE.exists():
             set_key(str(ENV_FILE), k, str(v))
 
+    # rover SDK url / port — lets you point the dashboard at an SDK on any port
+    # (e.g. 8003) or host without a restart. Accepts a full URL or a bare port.
+    if body.get("rover_sdk_url"):
+        val = str(body["rover_sdk_url"]).strip()
+        if val.isdigit():
+            val = f"http://localhost:{val}"
+        val = val.rstrip("/")
+        os.environ["ROVER_SDK_URL"] = val
+        if ENV_FILE.exists():
+            set_key(str(ENV_FILE), "ROVER_SDK_URL", val)
+
     if body.get("voice_provider"):
         os.environ["VOICE_PROVIDER"] = body["voice_provider"]
         if ENV_FILE.exists():
@@ -421,7 +445,7 @@ async def api_health():
         sdk_ok = True
     except Exception:
         pass
-    return {"ok": True, "sdk": sdk_ok, "sdk_url": ROVER_SDK_URL}
+    return {"ok": True, "sdk": sdk_ok, "sdk_url": _resolve_sdk_url()}
 
 
 # Voice: browser mic ↔ bidi model (PCM16 over WS). Pragmatic streaming bridge.

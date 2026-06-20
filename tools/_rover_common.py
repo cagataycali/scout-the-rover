@@ -17,6 +17,18 @@ import requests
 DEFAULT_SDK_URL = os.getenv("ROVER_SDK_URL", "http://localhost:8001")
 DEFAULT_TIMEOUT = float(os.getenv("ROVER_HTTP_TIMEOUT", "60"))
 
+# Agent turn-direction sign. The SDK/hardware already matches the agent's
+# +angular=left convention, so NO inversion by default (1). The dashboard's
+# manual WASD/joystick path uses its own DASH_TURN_SIGN (it was observed
+# reversed there). Override here with ROVER_TURN_SIGN=-1 only if the AGENT's
+# turns are reversed.
+TURN_SIGN = float(os.getenv("ROVER_TURN_SIGN", "1"))
+
+
+def apply_turn_sign(angular: float) -> float:
+    """Correct angular for this rover's physical turn direction."""
+    return angular * TURN_SIGN
+
 
 def sdk_url(path: str) -> str:
     base = os.getenv("ROVER_SDK_URL", DEFAULT_SDK_URL).rstrip("/")

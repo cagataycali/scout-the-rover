@@ -4,11 +4,12 @@
 
 ### _a small robot with a big curiosity_
 
-**A [Strands](https://strandsagents.com) agent that sees, thinks, talks, and drives a [FrodoBots Earth Rover Mini+](https://www.frodobots.com/) down real sidewalks.**
+**A [Strands](https://strandsagents.com) agent that sees, thinks, talks, and drives a [FrodoBots Earth Rover Mini+](https://www.frodobots.com/) down real sidewalks — and remembers every frame to teach the next scout.**
 
 [![sdk](https://img.shields.io/badge/sdk-earth--rovers--sdk-00ff88?style=flat-square)](https://github.com/cagataycali/earth-rovers-sdk)
-[![tools](https://img.shields.io/badge/tools-14-ff2a6d?style=flat-square)](#-the-toolbelt)
+[![tools](https://img.shields.io/badge/tools-17_(+cosmos)-ff2a6d?style=flat-square)](#-the-toolbelt)
 [![strands](https://img.shields.io/badge/built_with-strands_agents-b967ff?style=flat-square)](https://strandsagents.com)
+[![cosmos](https://img.shields.io/badge/🌌_NVIDIA-cosmos-76b900?style=flat-square)](https://github.com/strands-labs/strands-for-cosmos)
 [![dataset](https://img.shields.io/badge/🤗_dataset-scout--earthrover--ecot-ffce1c?style=flat-square)](https://huggingface.co/datasets/cagataydev/scout-earthrover-ecot)
 [![license](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](#-license)
 
@@ -57,8 +58,8 @@
 
 ## 🛞 what is scout?
 
-`scout` is **one agent with many personas**, all sharing the same 14 rover
-tools and the same little body on wheels:
+`scout` is **one agent with many personas**, all sharing the same rover
+toolbelt and the same little body on wheels:
 
 - 🧠 **REPL** (`agent.py`) — type to scout, watch it see and drive
 - 🎙 **voice** (`voice_agent.py`) — talk to scout, bidirectional speech
@@ -67,10 +68,13 @@ tools and the same little body on wheels:
   reflect and wander on its own
 - 📱 **telegram** (`telegram_listener.py`) — drive scout from your pocket
 - 🖥️ **dashboard** (`dashboard_server.py`) — a glassmorphic web cockpit
+  (WASD/joystick drive + browser-mic voice + live camera/telemetry)
 
 Camera tools return **proper Strands inline image content blocks**, so the
 model doesn't get a *description* of the world — it literally **sees** what the
-rover sees, every turn.
+rover sees, every turn. On a GPU box it can also reach for **🌌 NVIDIA Cosmos**
+world-model tools to reason deeply over clips, predict the outcome of a
+maneuver, or even generate video.
 
 ```
 🛞 > what do you see?
@@ -78,7 +82,7 @@ rover sees, every turn.
 🤖 I'm on a sidewalk. There's a tree ahead-left, clear path forward.
 
 🛞 > drive up to the tree, carefully
-    → rover_see → rover_move(0.3, 0, 2) → rover_see → rover_move(0.3, 0.1, 1.5) → rover_stop
+    → rover_navigate(steps=[...], default_speed="crawl")  → rover_stop
 🤖 Done — stopped about a meter from the tree.
 
 🎙 (voice) "scout, turn on your lamp and say hi"
@@ -93,27 +97,71 @@ rover's battery, GPS, orientation — and already seeing the road.
 
 ## ⚡ run
 
+### option A — local (venv)
+
 ```bash
 # 1. Earth Rovers SDK (the rover bridge — must be running first)
-make sdk                       # clones + sets up our SDK fork
-$EDITOR earth-rovers-sdk/.env  # SDK_API_TOKEN + BOT_SLUG + CHROME_EXECUTABLE_PATH + SDK_PORT=8001
-make sdk-up                    # serves on :8001
+make sdk                       # clones + sets up our SDK fork (python3.13/3.12/3 auto)
+$EDITOR earth-rovers-sdk/.env  # SDK_API_TOKEN + BOT_SLUG + CHROME_EXECUTABLE_PATH + SDK_PORT=8002
+make sdk-up                    # serves on :8002  (auto-joins Agora — no "click to join")
 
 # 2. The agent
-cp .env.example .env           # ROVER_SDK_URL + AWS creds (Bedrock default)
+cp .env.example .env           # ROVER_SDK_URL=http://localhost:8002 + AWS creds (Bedrock default)
 make run                       # 🧠 REPL agent
 make voice                     # 🎙 bidirectional voice agent
 make dashboard                 # 🖥️ web cockpit → http://localhost:8080
+make live                      # 🧠+📱+🐢 agent + telegram + thinker, concurrently
 ```
+
+> **Note:** the SDK now defaults to **:8002** (was :8001) and **auto-joins** the
+> Agora video channel on boot via a background browser warm-up (`AUTO_JOIN=true`).
+> No human "Join" click required, ever.
+
+### option B — 🐳 docker (Cosmos base image, one stack)
+
+The whole stack runs from **one image** built on NVIDIA's
+`vllm/vllm-omni:cosmos3` base, so Cosmos world-model tools work on-GPU
+alongside scout. Services share the image but run different entrypoints.
+
+```bash
+cp .env.docker.example .env    # fill HF / GitHub / Telegram / FrodoBots tokens
+make docker-build              # build scout:latest on the cosmos3 base
+make docker-up                 # core: sdk(:8002) + dashboard(:8080)
+make docker-up-all             # everything: + telegram + thinker (+ voice/reasoner via profiles)
+make docker-logs               # tail all services
+make docker-down               # stop + remove
+```
+
+| compose service | entrypoint | what | profile |
+|---|---|---|---|
+| `sdk` | `sdk` | earth-rovers-sdk camera/telemetry/control (`:8002`, auto-join) | _core_ |
+| `dashboard` | `dashboard` | glass web cockpit (`:8080`) | _core_ |
+| `telegram` | `telegram` | telegram listener | `telegram`,`all` |
+| `thinker` | `thinker` | autonomous slow-thinker loop | `thinker`,`all` |
+| `voice` | `voice` | bidirectional voice agent | `voice`,`all` |
+| `reasoner` | `reasoner` | Cosmos 3 vLLM server (`:8000`) for `cosmos3_reason/caption/embodied` | `reasoner`,`cosmos`,`all` |
+
+GPU is reserved for every service (`deploy.resources … nvidia`). For a single
+all-in-one container, the `all` entrypoint supervises sdk + dashboard +
+telegram + thinker (+ voice/reasoner), each child auto-restarting; toggle with
+`SCOUT_ENABLE_{DASHBOARD,TELEGRAM,THINKER,VOICE,REASONER}` in `.env`.
+
+> **Cosmos reasoner networking:** the Reasoner-*server* tools
+> (`cosmos3_reason/caption/embodied/…`) call `http://localhost:8000` from inside
+> the package. They only resolve when co-located (single-container `all` with
+> `SCOUT_ENABLE_REASONER=1`). The in-process **Diffusers** tools
+> (`text2video`/`image2video`/`text2image`, forward/inverse dynamics, policy)
+> need **no server** — they just run on the GPU.
 
 ---
 
 ## 🔌 persist (run forever)
 
-Keep `scout` awake across crashes and reboots — runs the **telegram listener**
-and **slow-thinker loop** as durable OS services. Cross-platform: a **launchd
-plist** on macOS, a **systemd user unit** on Linux, paths derived from the
-current dir + venv (no hand-editing).
+Keep `scout` awake across crashes and reboots. Two ways:
+
+**(a) OS services for the agent personas** — telegram listener + slow-thinker as
+durable units (launchd on macOS, systemd `--user` on Linux), paths derived from
+the current dir + venv (no hand-editing):
 
 ```bash
 make persist            # install BOTH (telegram + thinker), prompts y/n each
@@ -131,29 +179,41 @@ make unpersist          # stop + remove both
 | restart | `KeepAlive` (on crash) | `Restart=on-failure` |
 | at boot | `RunAtLoad` | `enable --now` (+ `loginctl enable-linger` for headless) |
 
+**(b) system unit for the SDK** — `earth-rovers-sdk.service` keeps the rover
+bridge up on `:8002` and **auto-joins** Agora on boot:
+
+```bash
+sudo cp earth-rovers-sdk.service /etc/systemd/system/
+sudo systemctl enable --now earth-rovers-sdk
+```
+
 ---
 
 ## 🧰 the toolbelt
 
-scout's whole world is 14 tools. Vision returns images the model *sees*;
-motion always auto-stops; everything else is one HTTP hop to the rover.
+scout's core world is **17 tools** + an optional **🌌 Cosmos** bundle. Vision
+returns images the model *sees*; motion always auto-stops; everything else is
+one HTTP hop to the rover.
 
 | tool | what | returns |
 |---|---|---|
 | `rover_see(camera, save)` | front/rear/both camera frame | **inline image** — model sees it |
 | `rover_screenshot(views)` | front/rear/**map** composite | **inline images** |
 | `rover_move(linear, angular, duration)` | velocity drive, auto-stop | text + before/after frames |
-| `rover_navigate(steps, look_every_n_steps)` | batched multi-segment drive | text + inline images |
+| `rover_navigate(steps, default_speed, look_every_n_steps)` | batched multi-segment drive w/ named speeds | text + inline images |
 | `rover_stop()` | emergency stop — the kill switch | text |
 | `rover_lamp(on)` | headlamp | text |
 | `rover_state()` | battery/GPS/IMU/signal | text + json |
 | `rover_speak(text)` | TTS through the rover's speaker | text |
+| `rover_memory(action, …)` | persistent memory — remember/recall facts across turns & sessions | text + json |
 | `start_recording(task)` | begin LeRobot v3 dataset episode | text + json |
 | `stop_recording()` | encode mp4 + parquet to disk | text + json |
 | `recording_status()` | engine/episode state | text + json |
 | `controller_start()` | enable PS4 teleop background thread | text + json |
 | `controller_stop()` | disable teleop, stop rover | text |
 | `controller_status()` | connection + axis state | text + json |
+| `telegram(action, …)` | send/receive telegram messages | text + json |
+| `voice_say(text)` | speak through the active voice bridge | text |
 
 ```python
 from strands import Agent
@@ -163,6 +223,60 @@ agent = Agent(tools=ROVER_ALL_TOOLS)
 agent("look around and describe what you see")
 ```
 
+### 🏎 speed presets (rover_navigate)
+
+`rover_navigate` lets the agent reason in **semantic speed**, not raw floats.
+Pass `default_speed` for the whole journey and/or `"speed"` per step; when a
+step gives a `speed`, its `linear/angular` become a *direction* scaled to that
+magnitude:
+
+| name | scale |
+|---|---|
+| `crawl` | 0.20 |
+| `slow` | 0.35 |
+| `normal` | 0.55 _(default)_ |
+| `fast` | 0.80 |
+| `max` | 1.00 |
+
+```python
+rover_navigate(
+    default_speed="crawl",                       # cautious through a doorway
+    steps=[
+        {"linear": 1, "angular": 0,   "duration": 2, "label": "ease forward"},
+        {"linear": 1, "angular": 0.4, "duration": 1, "speed": "slow", "label": "veer right"},
+    ],
+    look_every_n_steps=1,
+)
+```
+
+### 🧭 turn direction
+
+Two **independent** control paths each have their own sign knob (they were
+observed to behave differently on this rover):
+
+- **Agent tools** (`rover_move` / `rover_navigate`): `ROVER_TURN_SIGN` (default
+  `1` — no inversion; `+angular = left`).
+- **Manual drive** (dashboard WASD/joystick): `DASH_TURN_SIGN` (default `-1` —
+  the manual path was reversed; the server corrects it).
+
+Flip the relevant one only if *that* path turns the wrong way.
+
+### 🌌 Cosmos tools (optional, GPU)
+
+When `strands_cosmos` is installed (it is, in the Docker image), scout gains a
+curated NVIDIA Cosmos bundle for deep visual reasoning + generation:
+
+| group | tools |
+|---|---|
+| **understand** | `cosmos3_caption`, `cosmos3_reason`, `cosmos3_temporal`, `cosmos3_ground`, `cosmos_vision_invoke` |
+| **embodied / world-model** | `cosmos3_embodied` (scene→next action), `cosmos3_action_cot` (task→trajectory), `cosmos3_policy`, `cosmos3_forward_dynamics` ("if I do X, what happens?"), `cosmos3_inverse_dynamics` ("what actions made this?") |
+| **generate** | `cosmos3_text2video`, `cosmos3_image2video`, `cosmos3_text2image` |
+| **I/O** | `video_extract_frames`, `video_probe` |
+
+Degrades gracefully: no `strands_cosmos` (e.g. a laptop) → the bundle is empty
+and nothing breaks. Toggle with `SCOUT_ENABLE_COSMOS=auto|1|0`. The agent's
+system prompt advertises these only when they're actually loaded.
+
 ---
 
 ## 🏗 architecture
@@ -170,7 +284,7 @@ agent("look around and describe what you see")
 ```
 ┌─────────────┐   HTTP    ┌──────────────────┐  WebRTC/RTM  ┌────────────┐
 │ agent.py    │ ────────→ │ earth-rovers-sdk │ ───────────→ │ Earth Rover│
-│ (Strands)   │  :8001    │ (headless Chrome)│              │   Mini+    │
+│ (Strands)   │  :8002    │ (headless Chrome)│   auto-join  │   Mini+    │
 │ voice_agent │           │ /control /data   │              │  🛞 scout  │
 └─────────────┘           │ /v2/front /speak │              └────────────┘
 ```
@@ -178,6 +292,10 @@ agent("look around and describe what you see")
 - **Per-turn state injection** — `agent.py` reads `/data` before every turn and
   rebuilds the system prompt with live battery/GPS/orientation. No defensive
   tool calls — scout always wakes up oriented.
+- **Auto-join** — the SDK warms a headless Chrome on startup and joins the Agora
+  channel automatically (background retry until creds/mission ready), serializing
+  browser init behind a lock so concurrent frame/data requests can't race a
+  half-built page.
 - **Safety first** — `rover_move` clamps to `[-1,1]`, re-streams command frames
   (the firmware wants a continuous stream), and **always auto-stops** after
   `duration` — even on exceptions. `rover_stop` is the hard kill.
@@ -199,7 +317,7 @@ python voice_agent.py --provider gemini --voice Kore
 ```
 
 Mic → bidi model → speakers, while scout drives / sees / speaks through the
-rover mid-conversation.
+rover mid-conversation. Configurable via `VOICE_PROVIDER` / `VOICE_NAME`.
 
 ---
 
@@ -208,11 +326,11 @@ rover mid-conversation.
 A mobile-first, glassmorphic Apple-style web cockpit to operate scout from any
 browser — phone, tablet, or laptop. Chat streams the agent **live over
 WebSocket**, camera frames + telemetry proxy through the same server, and you
-can drive manually with an on-screen joystick or **talk** to scout (browser
-mic ↔ bidi model).
+can drive manually with **WASD / an on-screen joystick** or **talk** to scout
+(browser mic ↔ bidi model).
 
 ```bash
-make sdk-up        # camera/telemetry need the SDK running first
+make sdk-up        # camera/telemetry need the SDK running first (:8002)
 make dashboard     # serves http://localhost:8080
 # DASH_PORT=9000 make dashboard   # custom port
 ```
@@ -226,7 +344,7 @@ Everything's configurable live from the ⚙️ drawer — no file edits, no rest
 | **Model ID** | swap `STRANDS_MODEL_ID` on the fly |
 | **Voice provider / voice** | openai · nova_sonic · gemini |
 | **Credentials & env** | edit `.env` keys (masked) from the UI; agent rebuilds on save |
-| **Manual drive** | 🕹️ glass joystick streams `/control`, big red e-stop |
+| **Manual drive** | ⌨️ **WASD** (hold to combine, `[`/`]` & `1-5` speed presets, Shift turbo) + 🕹️ glass joystick streaming `/control`, big red e-stop |
 | **Voice** | 🎙️ browser mic → bidi model → speakers (PCM16 over `/ws/voice`) |
 | **Cameras** | front/rear with picture-in-picture swap, lamp toggle, snapshot |
 
@@ -234,38 +352,39 @@ The static front-end lives in `docs/` so it can also be served by GitHub Pages
 or any static host — just point the WS URL at your running `dashboard_server.py`.
 
 ```
- browser (docs/)  ──WS /ws/chat──►  dashboard_server.py  ──►  agent.py (scout)
+ browser (docs/)  ──WS /ws/chat──►  dashboard_server.py  ───►  agent.py (scout)
    glass UI        ◄─ tokens ──        (FastAPI)            callback_handler
-   joystick/voice  ──WS /ws/voice─►                         ROVER_ALL_TOOLS
-   camera/telem    ──HTTP /api/*──►    proxy ──────────►   earth-rovers-sdk :8001
+   WASD/joystick   ──WS /ws/voice─►                          ROVER_ALL_TOOLS
+   camera/telem    ──HTTP /api/*──►    proxy ───────────►   earth-rovers-sdk :8002
 ```
 
 ---
 
-## 🎬 data collection (LeRobot v3 datasets)
+## 📦 data collection (LeRobot v3 datasets)
 
-scout doesn't just drive — it **remembers**. Three personas record concurrently
-into one daily corpus, and every reasoning trace (system prompt → tool calls →
+scout doesn't just drive — it **remembers**. Personas record concurrently into
+one daily corpus, and every reasoning trace (system prompt → tool calls →
 results) is bound to the video spine as an **Embodied Chain-of-Thought (ECoT)**
 sidecar, then exported to 🤗
 **[huggingface.co/datasets/cagataydev/scout-earthrover-ecot](https://huggingface.co/datasets/cagataydev/scout-earthrover-ecot)**.
 
-### 📊 a day in scout's life — `2026-06-19`
+### 📅 a day in scout's life — `2026-06-19`
 
 | persona | episodes | frames | ~duration | what it was doing |
 |---|--:|--:|--:|---|
 | 🐢 **thinker** | 28 | 10,080 | ~16.8 min | `[thinker] autonomous exploration` |
 | 📱 **telegram** | 1 | 1,309 | ~2.2 min | `@cagataycali: Can you come to bedroom?` |
 | 🧠 **main** | 1 | 373 | ~0.6 min | `perform a 360, then move ahead 5 ft zig-zag` |
-| **total** | **30** | **11,762** | **~19.6 min** | _front+rear video · state(16D) · action(3D) · audio · reasoning_ |
+| **total** | **30** | **11,762** | **~19.6 min** | _front+rear video · state · action · audio · reasoning_ |
 
 _@ 10 FPS · LeRobot v3 · per-agent datasets merge into one timeline via_
-`python -m tools.merge_datasets`. _The VLA spine (vision→action) and the ECoT
-view (reasoning→action) materialize from the same canonical store._
+`make merge` _(or_ `python -m tools.merge_datasets`_). The VLA spine
+(vision→action) and the ECoT view (reasoning→action) materialize from the same
+canonical store._
 
 Every `start_recording` → `stop_recording` cycle produces ONE episode in
 `./datasets/scout__earth-rover-mini/` — LeRobot v3 format (parquet rows, MP4
-video chunks, per-episode WAV audio sidecar). Reusable across sessions:
+video chunks, per-episode WAV audio sidecar):
 
 ```python
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
@@ -274,13 +393,35 @@ print(ds.num_episodes, ds.num_frames, ds.fps)
 sample = ds[0]   # observation.images.front, observation.state, action, ...
 ```
 
-**State** (16D): battery, voltage, current, signal, lat, lon, gps_signal,
-orientation, speed, accel xyz, gyro xyz, lamp.
-**Action** (3D, normalized `[-1, 1]`): linear, angular, lamp — matching the
-formulation in [Suomela et al. 2026 (arXiv:2601.09444)](https://arxiv.org/abs/2601.09444).
+### 🔢 schema — superset, LeRobot-safe
 
-Tunables: `ROVER_DATASET_ROOT` (`./datasets`), `ROVER_RECORD_FPS` (`10`),
-`ROVER_AUDIO_RATE` (`16000`).
+The **first 10 dims** of `observation.state` exactly match the official
+`earthrover_mini_plus` / `lilkm/earthrover-navigation` layout (dotted names,
+same order) so policies/checkpoints transfer — a standard model just slices
+`[:10]`. scout then **appends** richer raw telemetry pulled live from the SDK
+`/data` endpoint (verified non-zero on hardware):
+
+**`observation.state` — 27D**
+
+| idx | names | source |
+|---|---|---|
+| 0–9 | `linear.vel, angular.vel, battery.level, orientation.deg, gps.latitude, gps.longitude, gps.signal, signal.level, vibration, lamp.state` | official core (transfer-compatible) |
+| 10–11 | `voltage, current` | electrical (confirmed real, not padded) |
+| 12–17 | `imu.accel.{x,y,z}, imu.gyro.{x,y,z}` | latest sample of the SDK IMU burst arrays |
+| 18–20 | `imu.mag.{x,y,z}` | raw magnetometer — absolute heading reference |
+| 21–24 | `rpm.{front_left,front_right,rear_left,rear_right}` | **measured per-wheel odometry** — ground-truth proprioception (commanded≠executed) |
+| 25–26 | `power, network_state` | system context |
+
+**`action` — 2D, normalized `[-1, 1]`:** `linear.vel, angular.vel` — matching
+the reference formulation; `lamp` lives in the state vector, not the action.
+
+> The SDK exposes IMU / mag / rpm as **burst arrays** (multiple samples per
+> poll, each row ending in a unix timestamp). scout takes the freshest sample
+> per 10 Hz frame. _(An earlier build read flat `accel_x` keys the cloud SDK
+> never emits — those dims were silently zero; that's now fixed.)_
+
+Tunables: `ROVER_DATASET_ROOT` (`datasets`), `ROVER_RECORD_FPS` (`10`),
+`ROVER_AUDIO_RATE` (`16000`), `ROVER_REPO_ID` (pin one growing dataset).
 
 ---
 
@@ -303,7 +444,7 @@ Tunables: `ROVER_CONTROLLER_LINEAR_MAX` (0.7), `ROVER_CONTROLLER_ANGULAR_MAX`
 ## 🧪 test
 
 ```bash
-make test    # 12 unit tests, SDK fully mocked — no robot needed
+make test    # unit tests, SDK fully mocked — no robot needed
 ```
 
 ---

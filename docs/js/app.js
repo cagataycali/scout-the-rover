@@ -166,19 +166,20 @@ function pollCameras() {
   const bigView = frontFirst ? 'front' : 'rear';
   const pipView = frontFirst ? 'rear' : 'front';
   pollCam(bigView, $('camFront'));
-  if (!$('camRear').classList.contains('hidden')) pollCam(pipView, $('camRear'));
+  pollCam(pipView, $('camRear'));
+}
+function updateCamTag() {
+  $('camTag').textContent = frontFirst ? 'FRONT' : 'REAR';
+}
+function swapCams() {
+  frontFirst = !frontFirst;
+  updateCamTag();
+  pollCameras();
 }
 
-$('btnSwap').addEventListener('click', () => {
-  const pip = $('camRear');
-  if (pip.classList.contains('hidden')) {
-    pip.classList.remove('hidden');
-    $('camTag').textContent = frontFirst ? 'FRONT' : 'REAR';
-  } else {
-    frontFirst = !frontFirst;
-    $('camTag').textContent = frontFirst ? 'FRONT' : 'REAR';
-  }
-});
+$('btnSwap').addEventListener('click', swapCams);
+// tap the small PIP to promote it to the big view
+$('camRear').addEventListener('click', swapCams);
 
 // lamp toggle
 let lampOn = false;
@@ -215,7 +216,7 @@ function joyMove(clientX, clientY) {
   const dist = Math.hypot(dx, dy);
   if (dist > R) { dx = dx / dist * R; dy = dy / dist * R; }
   knob.style.transform = `translate(${dx}px, ${dy}px)`;
-  curAngular = +(dx / R).toFixed(2);     // right = +angular
+  curAngular = +(dx / R).toFixed(2);     // right knob = turn right (server corrects sign)
   curLinear = +(-dy / R).toFixed(2);     // up = +linear (forward)
 }
 function joyReset() {
@@ -257,6 +258,76 @@ $('btnEstop').addEventListener('click', () => {
   joyReset();
   toast('STOP', 'err');
 });
+
+// ─── WASD keyboard driving ──────────────────────────────────────────────
+// W/S = forward/back, A/D = turn left/right, Space = stop.
+// Hold multiple keys to combine (e.g. W+D = forward-right arc).
+// Speed is adjustable: [ / ] step down/up, 1-5 set presets, Shift = turbo.
+const KEYS = { w:false, a:false, s:false, d:false };
+let driveSpeed = +(LS.getItem('scout_drive_speed') || 0.55);   // 0..1
+let kbTimer = null;
+const SPEED_STEPS = [0.20, 0.35, 0.55, 0.80, 1.00];
+
+function setDriveSpeed(v) {
+  driveSpeed = Math.max(0.1, Math.min(1, +v.toFixed(2)));
+  LS.setItem('scout_drive_speed', driveSpeed);
+  const el = $('driveSpeedHud');
+  if (el) el.textContent = `${Math.round(driveSpeed * 100)}%`;
+  const sl = $('driveSpeedSlider');
+  if (sl) sl.value = String(driveSpeed);
+}
+
+function kbComputeAndStream() {
+  // turbo with Shift
+  const spd = KEYS._turbo ? Math.min(1, driveSpeed * 1.4) : driveSpeed;
+  let lin = (KEYS.w ? 1 : 0) - (KEYS.s ? 1 : 0);
+  let ang = (KEYS.d ? 1 : 0) - (KEYS.a ? 1 : 0);  // D=right(+) A=left(-); server corrects hardware sign
+  curLinear = +(lin * spd).toFixed(2);
+  curAngular = +(ang * spd).toFixed(2);
+  if (curLinear === 0 && curAngular === 0) {
+    if (kbTimer) { clearInterval(kbTimer); kbTimer = null; }
+    if (chatWs && chatWs.readyState === 1) chatWs.send(JSON.stringify({ type: 'stop' }));
+    return;
+  }
+  if (!kbTimer) {
+    kbTimer = setInterval(() => {
+      if (chatWs && chatWs.readyState === 1) {
+        chatWs.send(JSON.stringify({ type: 'control', linear: curLinear, angular: curAngular, duration: 0.25 }));
+      }
+    }, 150);
+  }
+}
+
+function isTypingTarget(t) {
+  const tag = (t && t.tagName || '').toLowerCase();
+  return tag === 'input' || tag === 'textarea' || (t && t.isContentEditable);
+}
+
+window.addEventListener('keydown', (e) => {
+  if (isTypingTarget(e.target)) return;        // don't hijack chat/config typing
+  const k = e.key.toLowerCase();
+  if (k in KEYS) { KEYS[k] = true; KEYS._turbo = e.shiftKey; kbComputeAndStream(); e.preventDefault(); return; }
+  if (k === ' ') { KEYS.w = KEYS.a = KEYS.s = KEYS.d = false; kbComputeAndStream(); e.preventDefault(); return; }
+  if (k === '[') { setDriveSpeed(driveSpeed - 0.1); e.preventDefault(); return; }
+  if (k === ']') { setDriveSpeed(driveSpeed + 0.1); e.preventDefault(); return; }
+  if (k >= '1' && k <= '5') { setDriveSpeed(SPEED_STEPS[+k - 1]); e.preventDefault(); return; }
+});
+window.addEventListener('keyup', (e) => {
+  if (isTypingTarget(e.target)) return;
+  const k = e.key.toLowerCase();
+  if (k in KEYS) { KEYS[k] = false; KEYS._turbo = e.shiftKey; kbComputeAndStream(); e.preventDefault(); }
+});
+// stop driving if the tab loses focus (prevents runaway rover)
+window.addEventListener('blur', () => {
+  KEYS.w = KEYS.a = KEYS.s = KEYS.d = false; kbComputeAndStream();
+});
+
+// optional speed slider wiring (if present in DOM)
+(function () {
+  const sl = $('driveSpeedSlider');
+  if (sl) { sl.addEventListener('input', () => setDriveSpeed(+sl.value)); }
+  setDriveSpeed(driveSpeed);
+})();
 
 // voice (browser mic ↔ /ws/voice) 
 let voiceWs = null, audioCtx = null, micStream = null, micNode = null;
@@ -352,6 +423,7 @@ async function loadConfig() {
     $('cfgModel').value = c.model_id || '';
     $('cfgVoiceProvider').value = c.voice_provider || 'openai';
     $('cfgVoiceName').value = c.voice_name || '';
+    $('cfgSdkUrl').value = c.rover_sdk_url || '';
     _envState = c.env || {};
     renderEnv();
   } catch { toast('config load failed', 'err'); }
@@ -407,6 +479,7 @@ $('btnSaveCfg').addEventListener('click', async () => {
     model_id: $('cfgModel').value.trim(),
     voice_provider: $('cfgVoiceProvider').value,
     voice_name: $('cfgVoiceName').value.trim(),
+    rover_sdk_url: $('cfgSdkUrl').value.trim(),
     env,
   };
   try {

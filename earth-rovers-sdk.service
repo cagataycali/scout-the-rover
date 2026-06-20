@@ -1,0 +1,23 @@
+[Unit]
+Description=Earth Rovers SDK — auto-joins Agora on boot (no click), serves camera/telemetry/control on :8002
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/scout-the-rover/earth-rovers-sdk
+EnvironmentFile=-/home/ubuntu/scout-the-rover/earth-rovers-sdk/.env
+# AUTO_JOIN=true → background loop warms the headless browser & clicks #join
+# automatically the moment this service starts. Override per-host if needed.
+Environment=AUTO_JOIN=true
+Environment=SDK_PORT=8002
+ExecStart=/home/ubuntu/scout-the-rover/earth-rovers-sdk/.venv/bin/hypercorn main:app --bind 0.0.0.0:8002
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

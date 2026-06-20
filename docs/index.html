@@ -11,6 +11,9 @@
 </head>
 <body>
 <div class="aurora"></div>
+<div class="stars"></div>
+<div class="stars2"></div>
+<div class="stars3"></div>
 
 <!-- top status bar -->
 <header class="topbar glass">
@@ -34,11 +37,11 @@
   <!-- camera viewport -->
   <section class="camera-wrap glass">
     <img id="camFront" class="cam" alt="front camera" />
-    <img id="camRear" class="cam cam-pip hidden" alt="rear camera" />
+    <img id="camRear" class="cam cam-pip" alt="rear camera (tap to swap)" title="tap to swap" />
     <div class="cam-overlay">
       <div class="cam-tag" id="camTag">FRONT</div>
       <div class="cam-actions">
-        <button class="chip" id="btnSwap">⇆ rear</button>
+        <button class="chip" id="btnSwap">⇆ swap</button>
         <button class="chip" id="btnLamp">💡 lamp</button>
         <button class="chip" id="btnSnap">📸</button>
       </div>
@@ -46,6 +49,7 @@
     <div class="hud" id="hud">
       <span id="hudSpeed">0.0 m/s</span>
       <span id="hudOrient">0°</span>
+      <span id="kbHint" title="W/S drive · A/D turn · Space stop · [ ] or 1-5 speed · Shift turbo">⌨️ WASD <b id="driveSpeedHud">55%</b></span>
     </div>
   </section>
 
@@ -64,6 +68,10 @@
   </div>
   <div class="joy-side">
     <button class="estop" id="btnEstop">STOP</button>
+    <label class="speed-ctl" title="Drive speed">
+      <span>speed</span>
+      <input id="driveSpeedSlider" type="range" min="0.1" max="1" step="0.05" value="0.55" />
+    </label>
     <button class="chip" id="btnJoyHide">▾</button>
   </div>
 </div>
@@ -89,6 +97,12 @@
       <span>WebSocket URL</span>
       <input id="cfgWsUrl" type="text" placeholder="ws://localhost:8080" />
       <small>Where the dashboard connects. Defaults to this page's origin.</small>
+    </label>
+
+    <label class="field">
+      <span>Rover SDK URL / port</span>
+      <input id="cfgSdkUrl" type="text" placeholder="http://localhost:8003  (or just 8003)" />
+      <small>Earth Rovers SDK endpoint for camera/telemetry/control. A bare number becomes http://localhost:&lt;port&gt;.</small>
     </label>
 
     <label class="field">
@@ -127,6 +141,40 @@
         <button class="chip" id="btnEnvAdd">+ add</button>
       </div>
     </div>
+
+    <details class="schema-section">
+      <summary><h3 style="display:inline">📊 Dataset schema <small class="schema-tag">LeRobot v3</small></h3></summary>
+      <small class="env-hint">Every drive is recorded. <b>observation.state</b> is a 27-dim superset — the first 10 dims match the official <code>earthrover_mini_plus</code> layout (slice <code>[:10]</code> for standard policies), then scout appends richer live telemetry from the SDK <code>/data</code> burst arrays.</small>
+
+      <div class="schema-group">
+        <div class="schema-head">observation.state <span class="schema-dim">27D</span></div>
+        <table class="schema-table">
+          <thead><tr><th>idx</th><th>names</th><th>source</th></tr></thead>
+          <tbody>
+            <tr><td>0–9</td><td><code>linear.vel · angular.vel · battery.level · orientation.deg · gps.latitude · gps.longitude · gps.signal · signal.level · vibration · lamp.state</code></td><td>official core <span class="badge-ok">transfer-safe</span></td></tr>
+            <tr><td>10–11</td><td><code>voltage · current</code></td><td>electrical (confirmed real)</td></tr>
+            <tr><td>12–17</td><td><code>imu.accel.{x,y,z} · imu.gyro.{x,y,z}</code></td><td>latest sample of SDK IMU burst</td></tr>
+            <tr><td>18–20</td><td><code>imu.mag.{x,y,z}</code></td><td>raw magnetometer — heading ref</td></tr>
+            <tr><td>21–24</td><td><code>rpm.{front_left,front_right,rear_left,rear_right}</code></td><td><b>measured wheel odometry</b> <span class="badge-new">new</span> — ground-truth proprioception (commanded≠executed)</td></tr>
+            <tr><td>25–26</td><td><code>power · network_state</code></td><td>system context</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="schema-group">
+        <div class="schema-head">action <span class="schema-dim">2D</span> <small>normalized [-1, 1]</small></div>
+        <table class="schema-table">
+          <tbody>
+            <tr><td>0–1</td><td><code>linear.vel · angular.vel</code></td><td>velocity command (lamp is in state, not action)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="schema-group">
+        <div class="schema-head">also recorded</div>
+        <small class="env-hint"><code>observation.images.front</code> + <code>.rear</code> (MP4) · per-episode WAV audio · <code>action_age</code> · ECoT reasoning sidecar (prompt → tool calls → results) → exported to 🤗 <code>scout-earthrover-ecot</code>.</small>
+      </div>
+    </details>
   </div>
 
   <div class="drawer-foot">

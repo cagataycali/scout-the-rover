@@ -10,7 +10,7 @@ PIP  ?= $(VENV)/bin/pip
 
 SDK_DIR ?= $(CURDIR)/earth-rovers-sdk
 SDK_URL ?= https://github.com/cagataycali/earth-rovers-sdk.git
-SDK_PORT ?= 8001
+SDK_PORT ?= 8002
 
 .PHONY: help
 help: ## show this menu
@@ -40,7 +40,7 @@ sdk: $(SDK_DIR)/.cloned ## clone + setup earth-rovers-sdk (our fork)
 
 $(SDK_DIR)/.cloned:
 	@test -d $(SDK_DIR) || git clone $(SDK_URL) $(SDK_DIR)
-	@cd $(SDK_DIR) && python3.13 -m venv .venv && .venv/bin/pip install -q -r requirements.txt
+	@cd $(SDK_DIR) && $(shell command -v python3.13 || command -v python3.12 || command -v python3) -m venv .venv && .venv/bin/pip install -q -r requirements.txt
 	@touch $@
 	@echo "✅ SDK ready. Configure $(SDK_DIR)/.env then: make sdk-up"
 
@@ -57,7 +57,7 @@ sdk-down: ## stop earth-rovers-sdk server
 venv: $(VENV)/.installed ## create .venv + install requirements
 
 $(VENV)/.installed: requirements.txt
-	@test -d $(VENV) || $(shell command -v python3.13 || command -v python3) -m venv $(VENV)
+	@test -d $(VENV) || $(shell command -v python3.13 || command -v python3.12 || command -v python3) -m venv $(VENV)
 	@$(PIP) install --quiet --upgrade pip
 	@$(PIP) install --quiet -r requirements.txt
 	@touch $@
@@ -253,3 +253,39 @@ ifeq ($(UNAME_S),Darwin)
 else
 	@journalctl --user -u scout-telegram -u scout-thinker -n 40 -f
 endif
+
+# ============================================================================
+# 🐳 Docker (Cosmos base image) — full scout stack: sdk + dashboard + telegram + thinker
+#   Config: cp .env.docker.example .env  (fill in HF/GitHub/Telegram/FrodoBot tokens)
+# ============================================================================
+COMPOSE ?= docker compose
+
+.PHONY: docker-build
+docker-build: ## build scout image on the cosmos3 base
+	@$(COMPOSE) build
+
+.PHONY: docker-up
+docker-up: ## start core stack (sdk + dashboard) in background
+	@$(COMPOSE) up -d sdk dashboard
+	@echo "🛞 dashboard → http://localhost:$${DASH_PORT:-8080}   sdk → http://localhost:$${SDK_PORT:-8002}"
+
+.PHONY: docker-up-all
+docker-up-all: ## start EVERYTHING (sdk + dashboard + telegram + thinker)
+	@$(COMPOSE) --profile all up -d
+	@echo "🛞 full scout stack up. dashboard → http://localhost:$${DASH_PORT:-8080}"
+
+.PHONY: docker-down
+docker-down: ## stop + remove the stack
+	@$(COMPOSE) --profile all down
+
+.PHONY: docker-logs
+docker-logs: ## tail logs of all running scout services
+	@$(COMPOSE) logs -f
+
+.PHONY: docker-ps
+docker-ps: ## show scout container status
+	@$(COMPOSE) ps
+
+.PHONY: docker-shell
+docker-shell: ## open a bash shell in a fresh scout container
+	@$(COMPOSE) run --rm --entrypoint /usr/local/bin/scout-entrypoint dashboard bash

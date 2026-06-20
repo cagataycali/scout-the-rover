@@ -1,0 +1,156 @@
+# =============================================================================
+# Scout the Rover — full stack on the Cosmos base image
+# Services share ONE image (scout:latest) but run different entrypoints.
+# All config comes from .env (copy .env.docker.example -> .env).
+#
+#   docker compose build
+#   docker compose up -d
+#   docker compose logs -f
+#
+# GPU (L40S etc.) is exposed to every service so Cosmos models can run on-device.
+# Ports: dashboard 8080, sdk 8002.
+# =============================================================================
+
+x-scout-common: &scout-common
+  image: scout:latest
+  build:
+    context: .
+    dockerfile: Dockerfile.scout
+    args:
+      COSMOS_BASE: ${COSMOS_BASE:-vllm/vllm-omni:cosmos3}
+  env_file: .env
+  restart: unless-stopped
+  # GPU access for Cosmos models
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+  # shared dirs for datasets / memory / captures (persist across restarts)
+  volumes:
+    - ./datasets:/app/datasets
+    - ./.memory:/app/.memory
+    - ./captures:/app/captures
+    - ./screenshots:/app/screenshots
+    - hf-cache:/root/.cache/huggingface   # share warmed model weights across services
+
+services:
+  # ---- Earth Rovers SDK: camera/telemetry server (other svcs proxy this) ----
+  sdk:
+    <<: *scout-common
+    container_name: scout-sdk
+    command: ["sdk"]
+    environment:
+      SDK_PORT: "8002"
+      # container Chrome path overrides whatever host .env had (e.g. macOS path)
+      CHROME_EXECUTABLE_PATH: "/usr/bin/google-chrome-stable"
+    ports:
+      - "${SDK_PORT:-8002}:8002"
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "curl -fsS http://localhost:8002/ >/dev/null 2>&1 || curl -fsS -o /dev/null -w '%{http_code}' http://localhost:8002/ | grep -qE '200|400'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ---- Cosmos Reasoner: vLLM server so cosmos3_reason/caption/embodied work --
+  # In-process Diffusers tools (text2video etc.) DON'T need this; only the
+  # Reasoner-server tools do. Heavy (loads Cosmos3-Nano on GPU) → opt-in profile.
+  reasoner:
+    <<: *scout-common
+    container_name: scout-reasoner
+    command: ["reasoner"]
+    environment:
+      C3_MODEL: "${C3_MODEL:-nvidia/Cosmos3-Nano}"
+      C3_REASON_PORT: "8000"
+      C3_MAX_LEN: "${C3_MAX_LEN:-32768}"
+      C3_GPU_MEM: "${C3_GPU_MEM:-0.92}"
+      C3_ENFORCE_EAGER: "${C3_ENFORCE_EAGER:-false}"
+      HF_TOKEN: "${HF_TOKEN:-}"
+    ports:
+      - "${C3_REASON_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "curl -fsS http://localhost:8000/health >/dev/null 2>&1"]
+      interval: 20s
+      timeout: 5s
+      retries: 30
+      start_period: 180s   # model load on first boot can be slow
+    profiles: ["reasoner", "cosmos", "all"]
+
+  # ---- Warmup (one-shot): preload Cosmos generator pipeline + (opt) reasoner --
+  # Run once to bake model weights into the shared HF cache volume so the first
+  # real agent call is fast. Exits after warming. `docker compose run --rm warmup`.
+  warmup:
+    <<: *scout-common
+    container_name: scout-warmup
+    command: ["warmup"]
+    restart: "no"
+    environment:
+      C3_GEN_MODEL: "${C3_GEN_MODEL:-nvidia/Cosmos3-Nano}"
+      C3_MODEL: "${C3_MODEL:-nvidia/Cosmos3-Nano}"
+      WARMUP_GENERATOR: "${WARMUP_GENERATOR:-1}"
+      WARMUP_GENERATE: "${WARMUP_GENERATE:-0}"
+      WARMUP_REASONER_DOWNLOAD: "${WARMUP_REASONER_DOWNLOAD:-0}"
+      HF_TOKEN: "${HF_TOKEN:-}"
+    profiles: ["warmup", "cosmos"]
+
+  # ---- Web dashboard: drive scout from a browser ----------------------------
+  dashboard:
+    <<: *scout-common
+    container_name: scout-dashboard
+    command: ["dashboard"]
+    environment:
+      DASH_PORT: "8080"
+      DASH_HOST: "0.0.0.0"
+      # talk to sdk service over the compose network
+      ROVER_SDK_URL: "http://sdk:8002"
+      COSMOS_REASONER_URL: "${COSMOS_REASONER_URL:-http://reasoner:8000/v1}"
+    ports:
+      - "${DASH_PORT:-8080}:8080"
+    depends_on:
+      sdk:
+        condition: service_healthy
+
+  # ---- Telegram listener: chat/drive scout from your phone ------------------
+  telegram:
+    <<: *scout-common
+    container_name: scout-telegram
+    command: ["telegram"]
+    environment:
+      ROVER_SDK_URL: "http://sdk:8002"
+    depends_on:
+      sdk:
+        condition: service_healthy
+    profiles: ["telegram", "all"]
+
+  # ---- Slow-thinker: autonomous reflection loop -----------------------------
+  thinker:
+    <<: *scout-common
+    container_name: scout-thinker
+    command: ["thinker"]
+    environment:
+      ROVER_SDK_URL: "http://sdk:8002"
+      THINKER_INTERVAL: "${THINKER_INTERVAL:-60}"
+    depends_on:
+      sdk:
+        condition: service_healthy
+    profiles: ["thinker", "all"]
+
+  # ---- Voice agent: bidirectional speech (browser/onboard mic ↔ model) -------
+  voice:
+    <<: *scout-common
+    container_name: scout-voice
+    command: ["voice"]
+    environment:
+      ROVER_SDK_URL: "http://sdk:8002"
+      VOICE_PROVIDER: "${VOICE_PROVIDER:-openai}"
+      VOICE_NAME: "${VOICE_NAME:-}"
+    depends_on:
+      sdk:
+        condition: service_healthy
+    profiles: ["voice", "all"]
+
+volumes:
+  hf-cache:

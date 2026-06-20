@@ -1,0 +1,67 @@
+# =============================================================================
+# Scout the Rover — all-in-one container
+# Base: NVIDIA Cosmos (vllm/vllm-omni:cosmos3) so we can run the latest/greatest
+# Cosmos models on-GPU alongside scout's services.
+#   ref: https://github.com/NVIDIA/cosmos-framework/blob/main/docs/setup.md#docker-container
+#
+# Bundles: rover agent, telegram listener, slow-thinker, web dashboard, and the
+# earth-rovers-sdk (camera/telemetry proxy w/ headless Chrome).
+#
+# Build:  docker build -f Dockerfile.scout -t scout:latest .
+# Run:    docker compose up -d   (see docker-compose.yml)
+# =============================================================================
+ARG COSMOS_BASE=vllm/vllm-omni:cosmos3
+ARG INSTALL_COSMOS=1
+FROM ${COSMOS_BASE}
+ARG INSTALL_COSMOS=1
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    # earth-rovers-sdk needs a real Chrome for headless camera capture
+    CHROME_EXECUTABLE_PATH=/usr/bin/google-chrome-stable \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+
+# --- System deps: Google Chrome (stable) + build tooling + audio (voice) -----
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        wget gnupg ca-certificates git curl \
+        fonts-ipafont-gothic fonts-wqy-zenhei fonts-freefont-ttf libxss1 \
+        libgl1 libglib2.0-0 \
+        portaudio19-dev libasound2-dev \
+    && wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && (apt-get install -y /tmp/chrome.deb || (apt-get -fy install && apt-get install -y /tmp/chrome.deb)) \
+    && rm -f /tmp/chrome.deb \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# --- Python deps (scout + sdk) ----------------------------------------------
+# Copy only requirement manifests first for better layer caching.
+COPY requirements.txt requirements-voice.txt /app/
+COPY earth-rovers-sdk/requirements.txt /app/sdk-requirements.txt
+RUN python3 -m pip install --upgrade pip \
+    && pip install -r /app/requirements.txt \
+    && pip install fastapi uvicorn websockets python-multipart hypercorn \
+    && pip install -r /app/sdk-requirements.txt \
+    # voice extras are optional; don't fail the build if a wheel is unavailable
+    && (pip install -r /app/requirements-voice.txt || echo "voice extras skipped") \
+    # 🌌 Cosmos world-model tools (optional; base image already has CUDA/torch/vllm).
+    # Skip with --build-arg INSTALL_COSMOS=0. Failure won't break the build.
+    && ( [ "${INSTALL_COSMOS:-1}" = "1" ] && (pip install strands-cosmos || echo "cosmos extras skipped") || echo "cosmos install disabled" ) \
+    # reconcile opencv with the base image's numpy 2.x (avoid cv2 ImportError):
+    # remove both opencv variants, then install ONE headless build for numpy 2.x
+    && (pip uninstall -y opencv-python opencv-python-headless 2>/dev/null || true) \
+    && pip install --no-cache-dir --force-reinstall "opencv-python-headless==4.11.0.86" "numpy>=2.0"
+
+# --- App source --------------------------------------------------------------
+COPY . /app/
+
+# Entrypoint dispatches to a chosen service via $SCOUT_SERVICE
+COPY docker/entrypoint.sh /usr/local/bin/scout-entrypoint
+RUN chmod +x /usr/local/bin/scout-entrypoint
+
+# dashboard 8080, sdk 8002
+EXPOSE 8080 8002
+
+ENTRYPOINT ["/usr/local/bin/scout-entrypoint"]
+CMD ["dashboard"]
