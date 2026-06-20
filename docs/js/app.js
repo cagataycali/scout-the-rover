@@ -6,6 +6,9 @@ WS chat streaming · camera polling · telemetry · joystick · voice · config.
 
 const $ = (id) => document.getElementById(id);
 const LS = window.localStorage;
+const authToken = () => (window.SCOUT_TOKEN || LS.getItem('scout_token') || '');
+const withAuth = (h = {}) => (authToken() ? { ...h, Authorization: `Bearer ${authToken()}` } : h);
+
 
 // connection config 
 // WS URL is a parameter: ?ws=... query → localStorage → page origin.
@@ -73,7 +76,7 @@ function setConn(state) {
 
 function connectChat() {
   try { if (chatWs) chatWs.close(); } catch (_) {}
-  const url = `${wsBase()}/ws/chat`;
+  const url = `${wsBase()}/ws/chat` + (authToken() ? `?token=${encodeURIComponent(authToken())}` : '');
   setConn('connecting…');
   chatWs = new WebSocket(url);
 
@@ -133,7 +136,7 @@ $('cmdInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendCh
 // telemetry polling 
 async function pollTelemetry() {
   try {
-    const r = await fetch(`${httpBase()}/api/telemetry`);
+    const r = await fetch(`${httpBase()}/api/telemetry`, { headers: withAuth() });
     if (!r.ok) throw 0;
     const d = await r.json();
     const bat = d.battery ?? d.battery_level ?? '--';
@@ -155,7 +158,7 @@ async function pollTelemetry() {
 let frontFirst = true; // which cam is the big one
 async function pollCam(view, imgEl) {
   try {
-    const r = await fetch(`${httpBase()}/api/frame/${view}`);
+    const r = await fetch(`${httpBase()}/api/frame/${view}`, { headers: withAuth() });
     if (!r.ok) return;
     const d = await r.json();
     const b64 = d[`${view}_frame`];
@@ -166,19 +169,20 @@ function pollCameras() {
   const bigView = frontFirst ? 'front' : 'rear';
   const pipView = frontFirst ? 'rear' : 'front';
   pollCam(bigView, $('camFront'));
-  if (!$('camRear').classList.contains('hidden')) pollCam(pipView, $('camRear'));
+  pollCam(pipView, $('camRear'));
+}
+function updateCamTag() {
+  $('camTag').textContent = frontFirst ? 'FRONT' : 'REAR';
+}
+function swapCams() {
+  frontFirst = !frontFirst;
+  updateCamTag();
+  pollCameras();
 }
 
-$('btnSwap').addEventListener('click', () => {
-  const pip = $('camRear');
-  if (pip.classList.contains('hidden')) {
-    pip.classList.remove('hidden');
-    $('camTag').textContent = frontFirst ? 'FRONT' : 'REAR';
-  } else {
-    frontFirst = !frontFirst;
-    $('camTag').textContent = frontFirst ? 'FRONT' : 'REAR';
-  }
-});
+$('btnSwap').addEventListener('click', swapCams);
+// tap the small PIP to promote it to the big view
+$('camRear').addEventListener('click', swapCams);
 
 // lamp toggle
 let lampOn = false;
@@ -187,7 +191,7 @@ $('btnLamp').addEventListener('click', async () => {
   $('btnLamp').classList.toggle('on', lampOn);
   try {
     await fetch(`${httpBase()}/api/lamp`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: withAuth({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ on: lampOn }),
     });
   } catch { toast('lamp failed', 'err'); }
@@ -215,7 +219,7 @@ function joyMove(clientX, clientY) {
   const dist = Math.hypot(dx, dy);
   if (dist > R) { dx = dx / dist * R; dy = dy / dist * R; }
   knob.style.transform = `translate(${dx}px, ${dy}px)`;
-  curAngular = +(dx / R).toFixed(2);     // right = +angular
+  curAngular = +(dx / R).toFixed(2);     // right knob = turn right (server corrects sign)
   curLinear = +(-dy / R).toFixed(2);     // up = +linear (forward)
 }
 function joyReset() {
@@ -258,6 +262,76 @@ $('btnEstop').addEventListener('click', () => {
   toast('STOP', 'err');
 });
 
+// ─── WASD keyboard driving ──────────────────────────────────────────────
+// W/S = forward/back, A/D = turn left/right, Space = stop.
+// Hold multiple keys to combine (e.g. W+D = forward-right arc).
+// Speed is adjustable: [ / ] step down/up, 1-5 set presets, Shift = turbo.
+const KEYS = { w:false, a:false, s:false, d:false };
+let driveSpeed = +(LS.getItem('scout_drive_speed') || 0.55);   // 0..1
+let kbTimer = null;
+const SPEED_STEPS = [0.20, 0.35, 0.55, 0.80, 1.00];
+
+function setDriveSpeed(v) {
+  driveSpeed = Math.max(0.1, Math.min(1, +v.toFixed(2)));
+  LS.setItem('scout_drive_speed', driveSpeed);
+  const el = $('driveSpeedHud');
+  if (el) el.textContent = `${Math.round(driveSpeed * 100)}%`;
+  const sl = $('driveSpeedSlider');
+  if (sl) sl.value = String(driveSpeed);
+}
+
+function kbComputeAndStream() {
+  // turbo with Shift
+  const spd = KEYS._turbo ? Math.min(1, driveSpeed * 1.4) : driveSpeed;
+  let lin = (KEYS.w ? 1 : 0) - (KEYS.s ? 1 : 0);
+  let ang = (KEYS.d ? 1 : 0) - (KEYS.a ? 1 : 0);  // D=right(+) A=left(-); server corrects hardware sign
+  curLinear = +(lin * spd).toFixed(2);
+  curAngular = +(ang * spd).toFixed(2);
+  if (curLinear === 0 && curAngular === 0) {
+    if (kbTimer) { clearInterval(kbTimer); kbTimer = null; }
+    if (chatWs && chatWs.readyState === 1) chatWs.send(JSON.stringify({ type: 'stop' }));
+    return;
+  }
+  if (!kbTimer) {
+    kbTimer = setInterval(() => {
+      if (chatWs && chatWs.readyState === 1) {
+        chatWs.send(JSON.stringify({ type: 'control', linear: curLinear, angular: curAngular, duration: 0.25 }));
+      }
+    }, 150);
+  }
+}
+
+function isTypingTarget(t) {
+  const tag = (t && t.tagName || '').toLowerCase();
+  return tag === 'input' || tag === 'textarea' || (t && t.isContentEditable);
+}
+
+window.addEventListener('keydown', (e) => {
+  if (isTypingTarget(e.target)) return;        // don't hijack chat/config typing
+  const k = e.key.toLowerCase();
+  if (k in KEYS) { KEYS[k] = true; KEYS._turbo = e.shiftKey; kbComputeAndStream(); e.preventDefault(); return; }
+  if (k === ' ') { KEYS.w = KEYS.a = KEYS.s = KEYS.d = false; kbComputeAndStream(); e.preventDefault(); return; }
+  if (k === '[') { setDriveSpeed(driveSpeed - 0.1); e.preventDefault(); return; }
+  if (k === ']') { setDriveSpeed(driveSpeed + 0.1); e.preventDefault(); return; }
+  if (k >= '1' && k <= '5') { setDriveSpeed(SPEED_STEPS[+k - 1]); e.preventDefault(); return; }
+});
+window.addEventListener('keyup', (e) => {
+  if (isTypingTarget(e.target)) return;
+  const k = e.key.toLowerCase();
+  if (k in KEYS) { KEYS[k] = false; KEYS._turbo = e.shiftKey; kbComputeAndStream(); e.preventDefault(); }
+});
+// stop driving if the tab loses focus (prevents runaway rover)
+window.addEventListener('blur', () => {
+  KEYS.w = KEYS.a = KEYS.s = KEYS.d = false; kbComputeAndStream();
+});
+
+// optional speed slider wiring (if present in DOM)
+(function () {
+  const sl = $('driveSpeedSlider');
+  if (sl) { sl.addEventListener('input', () => setDriveSpeed(+sl.value)); }
+  setDriveSpeed(driveSpeed);
+})();
+
 // voice (browser mic ↔ /ws/voice) 
 let voiceWs = null, audioCtx = null, micStream = null, micNode = null;
 let playTime = 0, voiceRate = 24000;
@@ -269,7 +343,7 @@ async function startVoice() {
   } catch { toast('mic permission denied', 'err'); return; }
 
   audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-  voiceWs = new WebSocket(`${wsBase()}/ws/voice`);
+  voiceWs = new WebSocket(`${wsBase()}/ws/voice` + (authToken() ? `?token=${encodeURIComponent(authToken())}` : ''));
   voiceWs.binaryType = 'arraybuffer';
 
   voiceWs.onopen = () => {
@@ -335,23 +409,90 @@ $('btnMic').addEventListener('click', () => { voiceOn ? stopVoice() : startVoice
 
 // settings drawer 
 const drawer = $('drawer'), scrim = $('drawerScrim');
-function openDrawer() { loadConfig(); drawer.classList.remove('hidden'); scrim.classList.remove('hidden'); }
+function openDrawer() { loadConfig(); loadPasskeys(); drawer.classList.remove('hidden'); scrim.classList.remove('hidden'); }
 function closeDrawer() { drawer.classList.add('hidden'); scrim.classList.add('hidden'); }
 $('btnSettings').addEventListener('click', openDrawer);
 $('btnCloseDrawer').addEventListener('click', closeDrawer);
 $('btnCloseDrawer2').addEventListener('click', closeDrawer);
 scrim.addEventListener('click', closeDrawer);
 
+// passkey management (multi-admin)
+function passkeyMsg(t, err) {
+  const el = $('passkeyMsg'); if (!el) return;
+  el.textContent = t || ''; el.className = 'passkey-msg' + (err ? ' err' : '');
+}
+
+async function loadPasskeys() {
+  const sec = $('passkeySection'); if (!sec) return;
+  const list = $('passkeyList');
+  if (!window.ScoutAuth) { sec.style.display = 'none'; return; }
+  try {
+    const creds = await ScoutAuth.listCredentials();
+    sec.style.display = '';
+    list.innerHTML = '';
+    creds.forEach((c) => {
+      const row = document.createElement('div');
+      row.className = 'passkey-row' + (c.current ? ' current' : '');
+      const when = c.created ? new Date(c.created * 1000).toLocaleDateString() : '';
+      row.innerHTML = `
+        <span class="pk-icon">🔑</span>
+        <input class="pk-name" value="${(c.name || 'passkey').replace(/"/g, '&quot;')}" data-id="${c.id}" />
+        <span class="pk-meta">${c.current ? 'this device · ' : ''}${when}</span>
+        <button class="pk-del icon-btn" data-id="${c.id}" title="revoke">🗑️</button>`;
+      list.appendChild(row);
+    });
+    // rename on blur/enter
+    list.querySelectorAll('.pk-name').forEach((inp) => {
+      const save = async () => {
+        try { await ScoutAuth.renameCredential(inp.dataset.id, inp.value.trim()); passkeyMsg('✓ renamed'); }
+        catch (e) { passkeyMsg('✗ ' + e.message, true); }
+      };
+      inp.addEventListener('blur', save);
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') inp.blur(); });
+    });
+    // delete
+    list.querySelectorAll('.pk-del').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Revoke this passkey? That device will no longer be able to drive scout.')) return;
+        try {
+          await ScoutAuth.deleteCredential(btn.dataset.id);
+          passkeyMsg('✓ revoked');
+          loadPasskeys();
+        } catch (e) { passkeyMsg('✗ ' + e.message, true); }
+      });
+    });
+  } catch (e) {
+    // auth disabled or unavailable → hide section
+    sec.style.display = 'none';
+  }
+}
+
+(function wirePasskeyAdd() {
+  const btn = $('btnAddPasskey'); if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const label = prompt('Name this passkey (e.g. "Cagatay\'s iPhone", "YubiKey-blue"):', 'new passkey');
+    if (label === null) return;
+    btn.disabled = true; passkeyMsg('Waiting for your authenticator…');
+    try {
+      await ScoutAuth.enrollAdditional(label.trim() || 'passkey');
+      passkeyMsg('✓ passkey enrolled');
+      loadPasskeys();
+    } catch (e) { passkeyMsg('✗ ' + (e.message || 'failed'), true); }
+    finally { btn.disabled = false; }
+  });
+})();
+
 let _envState = {};
 async function loadConfig() {
   $('cfgWsUrl').value = LS.getItem('scout_ws') || defaultBase();
   try {
-    const r = await fetch(`${httpBase()}/api/config`);
+    const r = await fetch(`${httpBase()}/api/config`, { headers: withAuth() });
     const c = await r.json();
     $('cfgPrompt').value = c.system_prompt || '';
     $('cfgModel').value = c.model_id || '';
     $('cfgVoiceProvider').value = c.voice_provider || 'openai';
     $('cfgVoiceName').value = c.voice_name || '';
+    $('cfgSdkUrl').value = c.rover_sdk_url || '';
     _envState = c.env || {};
     renderEnv();
   } catch { toast('config load failed', 'err'); }
@@ -384,7 +525,7 @@ $('btnEnvAdd').addEventListener('click', () => {
 $('btnResetPrompt').addEventListener('click', async () => {
   try {
     await fetch(`${httpBase()}/api/config`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: withAuth({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ reset_prompt: true }),
     });
     await loadConfig();
@@ -407,11 +548,12 @@ $('btnSaveCfg').addEventListener('click', async () => {
     model_id: $('cfgModel').value.trim(),
     voice_provider: $('cfgVoiceProvider').value,
     voice_name: $('cfgVoiceName').value.trim(),
+    rover_sdk_url: $('cfgSdkUrl').value.trim(),
     env,
   };
   try {
     await fetch(`${httpBase()}/api/config`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: withAuth({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     });
     toast('saved & applied', 'ok');
@@ -421,7 +563,15 @@ $('btnSaveCfg').addEventListener('click', async () => {
   } catch { toast('save failed', 'err'); }
 });
 
-// boot 
-connectChat();
-pollTelemetry(); setInterval(pollTelemetry, 2000);
-pollCameras();  setInterval(pollCameras, 700);
+// boot — deferred until the auth gate releases (auth.js calls window.scoutBoot)
+let _booted = false;
+window.scoutBoot = function scoutBoot() {
+  if (_booted) return; _booted = true;
+  connectChat();
+  pollTelemetry(); setInterval(pollTelemetry, 2000);
+  pollCameras();  setInterval(pollCameras, 700);
+};
+// Fallback: if auth.js isn't present / gate never runs, boot after a tick.
+setTimeout(() => { if (!_booted && document.getElementById('authGate') && document.getElementById('authGate').classList.contains('hidden')) window.scoutBoot(); }, 50);
+// If there's no gate element at all (auth removed), boot immediately.
+if (!document.getElementById('authGate')) window.scoutBoot();

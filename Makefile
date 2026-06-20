@@ -10,7 +10,7 @@ PIP  ?= $(VENV)/bin/pip
 
 SDK_DIR ?= $(CURDIR)/earth-rovers-sdk
 SDK_URL ?= https://github.com/cagataycali/earth-rovers-sdk.git
-SDK_PORT ?= 8001
+SDK_PORT ?= 8002
 
 .PHONY: help
 help: ## show this menu
@@ -35,12 +35,42 @@ dashboard: venv ## start the web dashboard (drive scout from a browser)
 	@echo "🛞 dashboard → http://localhost:$${DASH_PORT:-8080}  (needs 'make sdk-up' for camera/telemetry)"
 	@$(PY) dashboard_server.py
 
+.PHONY: dashboard-tls
+dashboard-tls: venv ## start the dashboard over HTTPS (self-signed) so WebAuthn works on LAN/IP
+	@echo "🔒 dashboard (HTTPS) → https://localhost:$${DASH_PORT:-8443}  — accept the self-signed warning once"
+	@DASH_TLS=true DASH_PORT=$${DASH_PORT:-8443} $(PY) dashboard_server.py
+
+.PHONY: field-card
+field-card: venv ## generate a printable QR setup card (scan to enroll a passkey)
+	@DASH_TLS=$${DASH_TLS:-true} DASH_PORT=$${DASH_PORT:-8080} $(PY) field_setup.py $${BOOTSTRAP:+--bootstrap $$BOOTSTRAP}
+
+.PHONY: mkcert-install
+mkcert-install: ## install mkcert + a locally-trusted CA (no browser warning)
+	@command -v mkcert >/dev/null 2>&1 || { \
+	  echo "📦 installing mkcert…"; \
+	  if command -v brew >/dev/null 2>&1; then brew install mkcert nss; \
+	  elif command -v apt-get >/dev/null 2>&1; then \
+	    sudo apt-get update && sudo apt-get install -y libnss3-tools wget && \
+	    wget -qO /tmp/mkcert "https://dl.filippo.io/mkcert/latest?for=linux/amd64" && \
+	    sudo install /tmp/mkcert /usr/local/bin/mkcert; \
+	  else echo "❌ install mkcert manually: https://github.com/FiloSottile/mkcert"; exit 1; fi; }
+	@mkcert -install
+	@echo "✅ mkcert CA installed. Run 'make dashboard-tls' — certs will be trusted (no warning)."
+
+.PHONY: mdns
+mdns: venv ## advertise scout.local on the LAN (standalone test)
+	@SCOUT_MDNS=true $(PY) scout_mdns.py
+
+.PHONY: ca
+ca: ## print the mkcert root CA path (install on phones via /trust QR)
+	@command -v mkcert >/dev/null 2>&1 && echo "CAROOT: $$(mkcert -CAROOT)" && ls -la "$$(mkcert -CAROOT)" || echo "mkcert not installed — run 'make mkcert-install' (or self-signed mode: just accept the browser warning)"
+
 .PHONY: sdk
 sdk: $(SDK_DIR)/.cloned ## clone + setup earth-rovers-sdk (our fork)
 
 $(SDK_DIR)/.cloned:
 	@test -d $(SDK_DIR) || git clone $(SDK_URL) $(SDK_DIR)
-	@cd $(SDK_DIR) && python3.13 -m venv .venv && .venv/bin/pip install -q -r requirements.txt
+	@cd $(SDK_DIR) && $(shell command -v python3.13 || command -v python3.12 || command -v python3) -m venv .venv && .venv/bin/pip install -q -r requirements.txt
 	@touch $@
 	@echo "✅ SDK ready. Configure $(SDK_DIR)/.env then: make sdk-up"
 
@@ -57,7 +87,7 @@ sdk-down: ## stop earth-rovers-sdk server
 venv: $(VENV)/.installed ## create .venv + install requirements
 
 $(VENV)/.installed: requirements.txt
-	@test -d $(VENV) || $(shell command -v python3.13 || command -v python3) -m venv $(VENV)
+	@test -d $(VENV) || $(shell command -v python3.13 || command -v python3.12 || command -v python3) -m venv $(VENV)
 	@$(PIP) install --quiet --upgrade pip
 	@$(PIP) install --quiet -r requirements.txt
 	@touch $@
@@ -253,3 +283,72 @@ ifeq ($(UNAME_S),Darwin)
 else
 	@journalctl --user -u scout-telegram -u scout-thinker -n 40 -f
 endif
+
+# ============================================================================
+# 🐳 Docker (Cosmos base image) — full scout stack: sdk + dashboard + telegram + thinker
+#   Config: cp .env.docker.example .env  (fill in HF/GitHub/Telegram/FrodoBot tokens)
+# ============================================================================
+COMPOSE ?= docker compose
+
+.PHONY: docker-build
+docker-build: ## build scout image on the cosmos3 base
+	@$(COMPOSE) build
+
+.PHONY: docker-up
+docker-up: ## start core stack (sdk + dashboard) in background
+	@$(COMPOSE) up -d sdk dashboard
+	@echo "🛞 dashboard → http://localhost:$${DASH_PORT:-8080}   sdk → http://localhost:$${SDK_PORT:-8002}"
+
+.PHONY: docker-up-all
+docker-up-all: ## start EVERYTHING (sdk + dashboard + telegram + thinker)
+	@$(COMPOSE) --profile all up -d
+	@echo "🛞 full scout stack up. dashboard → http://localhost:$${DASH_PORT:-8080}"
+
+.PHONY: docker-down
+docker-down: ## stop + remove the stack
+	@$(COMPOSE) --profile all down
+
+.PHONY: docker-logs
+docker-logs: ## tail logs of all running scout services
+	@$(COMPOSE) logs -f
+
+.PHONY: docker-ps
+docker-ps: ## show scout container status
+	@$(COMPOSE) ps
+
+.PHONY: docker-shell
+docker-shell: ## open a bash shell in a fresh scout container
+	@$(COMPOSE) run --rm --entrypoint /usr/local/bin/scout-entrypoint dashboard bash
+
+# ============================================================================
+# 🪶 Docker SLIM (CPU-only, no GPU/Cosmos) — runs the full scout stack anywhere
+#   Config: cp .env.docker.example .env  (HF/GitHub/Telegram/FrodoBot tokens)
+#   Ultra-slim (no recording): INSTALL_LEROBOT=0 make docker-slim-build
+# ============================================================================
+COMPOSE_SLIM ?= docker compose -f docker-compose.slim.yml
+
+.PHONY: docker-slim-build
+docker-slim-build: ## build scout:slim (python:3.12-slim base, CPU torch)
+	@$(COMPOSE_SLIM) build
+
+.PHONY: docker-slim-up
+docker-slim-up: ## start core slim stack (sdk + dashboard)
+	@$(COMPOSE_SLIM) up -d sdk dashboard
+	@echo "🪶 slim dashboard → https://localhost:$${DASH_PORT:-8080}   sdk → http://localhost:$${SDK_PORT:-8002}"
+
+.PHONY: docker-slim-up-all
+docker-slim-up-all: ## start EVERYTHING slim (sdk + dashboard + telegram + thinker)
+	@$(COMPOSE_SLIM) --profile all up -d
+	@echo "🪶 full slim scout stack up."
+
+.PHONY: docker-slim-down
+docker-slim-down: ## stop + remove the slim stack
+	@$(COMPOSE_SLIM) --profile all down
+
+.PHONY: docker-slim-logs
+docker-slim-logs: ## tail slim service logs
+	@$(COMPOSE_SLIM) logs -f
+
+.PHONY: docker-slim-ps
+docker-slim-ps: ## show slim container status
+	@$(COMPOSE_SLIM) ps

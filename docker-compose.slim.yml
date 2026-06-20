@@ -1,0 +1,120 @@
+# =============================================================================
+# Scout the Rover — SLIM stack (CPU-only, no GPU, no Cosmos)
+# Same services as docker-compose.yml but built from Dockerfile.scout.slim and
+# WITHOUT GPU reservations or the Cosmos reasoner. Runs anywhere Docker runs:
+# laptops, small cloud VMs, ARM boxes.
+#
+#   docker compose -f docker-compose.slim.yml build
+#   docker compose -f docker-compose.slim.yml up -d
+# =============================================================================
+
+x-scout-slim: &scout-slim
+  image: scout:slim
+  build:
+    context: .
+    dockerfile: Dockerfile.scout.slim
+    args:
+      PYTHON_BASE: ${PYTHON_BASE:-python:3.12-slim}
+      INSTALL_LEROBOT: ${INSTALL_LEROBOT:-1}
+  env_file: .env
+  restart: unless-stopped
+  # NO GPU reservation — this is the CPU-only image.
+  volumes:
+    - ./datasets:/app/datasets
+    - ./.memory:/app/.memory
+    - ./captures:/app/captures
+    - ./screenshots:/app/screenshots
+    - scout-auth-slim:/app/.scout_auth_vol   # passkeys + TLS cert persist
+  environment:
+    SCOUT_ENABLE_COSMOS: "0"                  # hard-off; no GPU here
+
+services:
+  # ---- Earth Rovers SDK: camera/telemetry server ----------------------------
+  sdk:
+    <<: *scout-slim
+    container_name: scout-slim-sdk
+    command: ["sdk"]
+    environment:
+      SCOUT_ENABLE_COSMOS: "0"
+      SDK_PORT: "8002"
+      CHROME_EXECUTABLE_PATH: "/usr/bin/chromium"
+    ports:
+      - "${SDK_PORT:-8002}:8002"
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "curl -fsS http://localhost:8002/ >/dev/null 2>&1 || curl -fsS -o /dev/null -w '%{http_code}' http://localhost:8002/ | grep -qE '200|400'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ---- Web dashboard --------------------------------------------------------
+  dashboard:
+    <<: *scout-slim
+    container_name: scout-slim-dashboard
+    command: ["dashboard"]
+    environment:
+      SCOUT_ENABLE_COSMOS: "0"
+      DASH_PORT: "8080"
+      DASH_HOST: "0.0.0.0"
+      ROVER_SDK_URL: "http://sdk:8002"
+      DASH_TLS: "${DASH_TLS:-true}"
+      DASH_TLS_DIR: "/app/.scout_auth_vol/tls"
+      DASH_TLS_HOSTS: "${DASH_TLS_HOSTS:-}"
+      DASH_TLS_CERT: "${DASH_TLS_CERT:-}"
+      DASH_TLS_KEY: "${DASH_TLS_KEY:-}"
+      SCOUT_AUTH_ENABLED: "${SCOUT_AUTH_ENABLED:-true}"
+      SCOUT_AUTH_STORE: "/app/.scout_auth_vol/auth.json"
+      SCOUT_AUTH_BOOTSTRAP_TOKEN: "${SCOUT_AUTH_BOOTSTRAP_TOKEN:-}"
+      SCOUT_PUBLIC_URL: "${SCOUT_PUBLIC_URL:-}"
+      SCOUT_MDNS: "${SCOUT_MDNS:-true}"
+      SCOUT_MDNS_NAME: "${SCOUT_MDNS_NAME:-scout}"
+    ports:
+      - "${DASH_PORT:-8080}:8080"
+    depends_on:
+      sdk:
+        condition: service_healthy
+
+  # ---- Telegram listener ----------------------------------------------------
+  telegram:
+    <<: *scout-slim
+    container_name: scout-slim-telegram
+    command: ["telegram"]
+    environment:
+      SCOUT_ENABLE_COSMOS: "0"
+      ROVER_SDK_URL: "http://sdk:8002"
+    depends_on:
+      sdk:
+        condition: service_healthy
+    profiles: ["telegram", "all"]
+
+  # ---- Slow-thinker ---------------------------------------------------------
+  thinker:
+    <<: *scout-slim
+    container_name: scout-slim-thinker
+    command: ["thinker"]
+    environment:
+      SCOUT_ENABLE_COSMOS: "0"
+      ROVER_SDK_URL: "http://sdk:8002"
+      THINKER_INTERVAL: "${THINKER_INTERVAL:-60}"
+    depends_on:
+      sdk:
+        condition: service_healthy
+    profiles: ["thinker", "all"]
+
+  # ---- Voice agent ----------------------------------------------------------
+  voice:
+    <<: *scout-slim
+    container_name: scout-slim-voice
+    command: ["voice"]
+    environment:
+      SCOUT_ENABLE_COSMOS: "0"
+      ROVER_SDK_URL: "http://sdk:8002"
+      VOICE_PROVIDER: "${VOICE_PROVIDER:-openai}"
+      VOICE_NAME: "${VOICE_NAME:-}"
+    depends_on:
+      sdk:
+        condition: service_healthy
+    profiles: ["voice", "all"]
+
+volumes:
+  scout-auth-slim:

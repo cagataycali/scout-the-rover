@@ -11,6 +11,26 @@
 </head>
 <body>
 <div class="aurora"></div>
+<div class="stars"></div>
+<div class="stars2"></div>
+<div class="stars3"></div>
+
+<!-- 🔐 auth gate (WebAuthn passkey) -->
+<div class="auth-gate hidden" id="authGate">
+  <div class="auth-card glass" id="authCard">
+    <div class="auth-logo">🛞🔐</div>
+    <h2 id="authTitle">scout</h2>
+    <p class="auth-sub" id="authSub">authenticating…</p>
+    <div class="auth-field hidden" id="authBootstrapWrap">
+      <label>Bootstrap token</label>
+      <input id="authBootstrap" type="password" placeholder="one-time setup secret" autocomplete="off" />
+    </div>
+    <button class="auth-btn" id="authPrimary">✦ Continue</button>
+    <div class="auth-msg" id="authMsg"></div>
+    <p class="auth-foot">Passwordless · your key never leaves this device.</p>
+  </div>
+</div>
+
 
 <!-- top status bar -->
 <header class="topbar glass">
@@ -27,6 +47,7 @@
     <div class="pill" id="pillGps"><span class="pi">📍</span><span class="pv" id="vGps">--</span></div>
   </div>
   <a class="icon-btn" href="/replay" aria-label="replay" title="recordings replay" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">🎞️</a>
+  <button class="icon-btn" id="btnLock" aria-label="lock" title="lock / sign out" onclick="window.ScoutAuth && window.ScoutAuth.logout()">🔒</button>
   <button class="icon-btn" id="btnSettings" aria-label="settings">⚙️</button>
 </header>
 
@@ -34,11 +55,11 @@
   <!-- camera viewport -->
   <section class="camera-wrap glass">
     <img id="camFront" class="cam" alt="front camera" />
-    <img id="camRear" class="cam cam-pip hidden" alt="rear camera" />
+    <img id="camRear" class="cam cam-pip" alt="rear camera (tap to swap)" title="tap to swap" />
     <div class="cam-overlay">
       <div class="cam-tag" id="camTag">FRONT</div>
       <div class="cam-actions">
-        <button class="chip" id="btnSwap">⇆ rear</button>
+        <button class="chip" id="btnSwap">⇆ swap</button>
         <button class="chip" id="btnLamp">💡 lamp</button>
         <button class="chip" id="btnSnap">📸</button>
       </div>
@@ -46,6 +67,7 @@
     <div class="hud" id="hud">
       <span id="hudSpeed">0.0 m/s</span>
       <span id="hudOrient">0°</span>
+      <span id="kbHint" title="W/S drive · A/D turn · Space stop · [ ] or 1-5 speed · Shift turbo">⌨️ WASD <b id="driveSpeedHud">55%</b></span>
     </div>
   </section>
 
@@ -64,6 +86,10 @@
   </div>
   <div class="joy-side">
     <button class="estop" id="btnEstop">STOP</button>
+    <label class="speed-ctl" title="Drive speed">
+      <span>speed</span>
+      <input id="driveSpeedSlider" type="range" min="0.1" max="1" step="0.05" value="0.55" />
+    </label>
     <button class="chip" id="btnJoyHide">▾</button>
   </div>
 </div>
@@ -92,6 +118,12 @@
     </label>
 
     <label class="field">
+      <span>Rover SDK URL / port</span>
+      <input id="cfgSdkUrl" type="text" placeholder="http://localhost:8003  (or just 8003)" />
+      <small>Earth Rovers SDK endpoint for camera/telemetry/control. A bare number becomes http://localhost:&lt;port&gt;.</small>
+    </label>
+
+    <label class="field">
       <span>Model ID</span>
       <input id="cfgModel" type="text" placeholder="global.anthropic.claude-sonnet-4-5-…" />
     </label>
@@ -117,6 +149,16 @@
       </label>
     </div>
 
+    <div class="passkey-section" id="passkeySection">
+      <h3>🔑 Admin passkeys</h3>
+      <small class="env-hint">Devices allowed to drive this rover. Add a teammate's device, rename, or revoke. You can't remove the last one.</small>
+      <div id="passkeyList" class="passkey-list"></div>
+      <button class="chip" id="btnAddPasskey">+ enroll this device / a new passkey</button>
+      <a class="chip" id="btnFieldCard" href="/field-card" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">🎫 onboard a teammate (QR card)</a>
+      <a class="chip" id="btnTrust" href="/trust" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">🔏 trust on iOS / Android (install CA)</a>
+      <div class="passkey-msg" id="passkeyMsg"></div>
+    </div>
+
     <div class="env-section">
       <h3>🔐 Credentials & env</h3>
       <small class="env-hint">Masked values are hidden — leave them to keep, edit to change.</small>
@@ -127,6 +169,40 @@
         <button class="chip" id="btnEnvAdd">+ add</button>
       </div>
     </div>
+
+    <details class="schema-section">
+      <summary><h3 style="display:inline">📊 Dataset schema <small class="schema-tag">LeRobot v3</small></h3></summary>
+      <small class="env-hint">Every drive is recorded. <b>observation.state</b> is a 27-dim superset — the first 10 dims match the official <code>earthrover_mini_plus</code> layout (slice <code>[:10]</code> for standard policies), then scout appends richer live telemetry from the SDK <code>/data</code> burst arrays.</small>
+
+      <div class="schema-group">
+        <div class="schema-head">observation.state <span class="schema-dim">27D</span></div>
+        <table class="schema-table">
+          <thead><tr><th>idx</th><th>names</th><th>source</th></tr></thead>
+          <tbody>
+            <tr><td>0–9</td><td><code>linear.vel · angular.vel · battery.level · orientation.deg · gps.latitude · gps.longitude · gps.signal · signal.level · vibration · lamp.state</code></td><td>official core <span class="badge-ok">transfer-safe</span></td></tr>
+            <tr><td>10–11</td><td><code>voltage · current</code></td><td>electrical (confirmed real)</td></tr>
+            <tr><td>12–17</td><td><code>imu.accel.{x,y,z} · imu.gyro.{x,y,z}</code></td><td>latest sample of SDK IMU burst</td></tr>
+            <tr><td>18–20</td><td><code>imu.mag.{x,y,z}</code></td><td>raw magnetometer — heading ref</td></tr>
+            <tr><td>21–24</td><td><code>rpm.{front_left,front_right,rear_left,rear_right}</code></td><td><b>measured wheel odometry</b> <span class="badge-new">new</span> — ground-truth proprioception (commanded≠executed)</td></tr>
+            <tr><td>25–26</td><td><code>power · network_state</code></td><td>system context</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="schema-group">
+        <div class="schema-head">action <span class="schema-dim">2D</span> <small>normalized [-1, 1]</small></div>
+        <table class="schema-table">
+          <tbody>
+            <tr><td>0–1</td><td><code>linear.vel · angular.vel</code></td><td>velocity command (lamp is in state, not action)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="schema-group">
+        <div class="schema-head">also recorded</div>
+        <small class="env-hint"><code>observation.images.front</code> + <code>.rear</code> (MP4) · per-episode WAV audio · <code>action_age</code> · ECoT reasoning sidecar (prompt → tool calls → results) → exported to 🤗 <code>scout-earthrover-ecot</code>.</small>
+      </div>
+    </details>
   </div>
 
   <div class="drawer-foot">
@@ -137,6 +213,7 @@
 
 <div class="toast-host" id="toastHost"></div>
 
+<script src="js/auth.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

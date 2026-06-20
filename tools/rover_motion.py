@@ -14,7 +14,7 @@ from typing import Any, Dict
 
 from strands import tool
 
-from ._rover_common import b64_to_image_block, error_result, ok_result, sdk_get, sdk_post
+from ._rover_common import b64_to_image_block, error_result, ok_result, sdk_get, sdk_post, apply_turn_sign
 from ._recorder_engine import ACTION_STATE
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ def _clamp(v: float, lo: float = -1.0, hi: float = 1.0) -> float:
 
 
 def _send(linear: float, angular: float, lamp: int | None = None) -> Dict[str, Any]:
-    command: Dict[str, Any] = {"linear": linear, "angular": angular}
+    command: Dict[str, Any] = {"linear": linear, "angular": apply_turn_sign(angular)}
     if lamp is not None:
         command["lamp"] = 1 if lamp else 0
     resp = sdk_post("/control", json={"command": command})

@@ -1,19 +1,20 @@
 /* scout dashboard — glassmorphic, mobile-first. */
 :root {
-  --bg: #07070c;
-  --glass: rgba(255, 255, 255, 0.07);
-  --glass-strong: rgba(255, 255, 255, 0.12);
-  --glass-brd: rgba(255, 255, 255, 0.16);
-  --txt: #f5f5f7;
-  --txt-dim: rgba(245, 245, 247, 0.55);
-  --accent: #0a84ff;        /* apple system blue */
-  --accent-2: #5e5ce6;      /* indigo */
-  --green: #30d158;
-  --red: #ff453a;
-  --amber: #ff9f0a;
+  --bg: #03060a;            /* deep space */
+  --bg-2: #06121a;          /* nebula teal-dark */
+  --glass: rgba(255, 255, 255, 0.06);
+  --glass-strong: rgba(255, 255, 255, 0.11);
+  --glass-brd: rgba(120, 240, 230, 0.18);
+  --txt: #f3fbfb;
+  --txt-dim: rgba(220, 245, 245, 0.55);
+  --accent: #2ee6d6;        /* turquoise */
+  --accent-2: #16b9c4;      /* deep turquoise */
+  --green: #30d1a8;
+  --red: #ff5d6c;
+  --amber: #ffc24a;
   --radius: 22px;
   --radius-sm: 14px;
-  --blur: 30px;
+  --blur: 26px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bot: env(safe-area-inset-bottom, 0px);
   font-size: 16px;
@@ -23,7 +24,11 @@
 
 html, body {
   height: 100%;
-  background: var(--bg);
+  background:
+    radial-gradient(120% 90% at 50% -10%, #061620 0%, transparent 55%),
+    radial-gradient(100% 80% at 100% 100%, #051419 0%, transparent 50%),
+    linear-gradient(160deg, #02050a 0%, #030b13 50%, #01060a 100%);
+  background-attachment: fixed;
   color: var(--txt);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   overflow: hidden;
@@ -32,15 +37,47 @@ html, body {
 
 /* animated aurora backdrop */
 .aurora {
-  position: fixed; inset: -40% -20% auto -20%; height: 90vh; z-index: 0;
+  position: fixed; inset: -30% -20% auto -20%; height: 100vh; z-index: 0;
   background:
-    radial-gradient(50% 60% at 20% 20%, rgba(94,92,230,0.45), transparent 70%),
-    radial-gradient(45% 55% at 85% 15%, rgba(10,132,255,0.40), transparent 70%),
-    radial-gradient(50% 50% at 60% 80%, rgba(48,209,88,0.20), transparent 70%);
-  filter: blur(60px) saturate(140%);
-  animation: drift 18s ease-in-out infinite alternate;
+    radial-gradient(45% 55% at 18% 18%, rgba(46,230,214,0.12), transparent 70%),
+    radial-gradient(40% 50% at 85% 12%, rgba(22,185,196,0.10), transparent 70%),
+    radial-gradient(55% 55% at 65% 85%, rgba(80,140,200,0.08), transparent 70%);
+  filter: blur(80px) saturate(120%);
+  opacity: 0.55;
+  animation: drift 22s ease-in-out infinite alternate;
   pointer-events: none;
 }
+
+/* darkening veil over the backdrop so content reads on deep space, not bright teal */
+.aurora::after {
+  content: ""; position: absolute; inset: -100%;
+  background: radial-gradient(120% 90% at 50% 30%, rgba(2,6,10,0.35) 0%, rgba(2,6,10,0.7) 100%);
+}
+
+/* starfield layers */
+.stars, .stars2, .stars3 {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-repeat: repeat;
+}
+.stars  { background-image:
+    radial-gradient(1px 1px at 20px 30px, #ffffff, transparent),
+    radial-gradient(1px 1px at 120px 80px, rgba(255,255,255,0.8), transparent),
+    radial-gradient(1px 1px at 200px 160px, #cffcf7, transparent),
+    radial-gradient(2px 2px at 300px 50px, rgba(255,255,255,0.7), transparent);
+  background-size: 350px 350px; animation: twinkle 5s ease-in-out infinite alternate, scroll-stars 120s linear infinite; }
+.stars2 { background-image:
+    radial-gradient(1px 1px at 60px 120px, rgba(46,230,214,0.9), transparent),
+    radial-gradient(1px 1px at 180px 40px, #ffffff, transparent),
+    radial-gradient(1.5px 1.5px at 260px 200px, rgba(255,255,255,0.6), transparent);
+  background-size: 480px 480px; opacity: 0.7;
+  animation: twinkle 7s ease-in-out infinite alternate, scroll-stars 200s linear infinite; }
+.stars3 { background-image:
+    radial-gradient(2px 2px at 90px 90px, rgba(255,255,255,0.9), transparent),
+    radial-gradient(1px 1px at 220px 150px, rgba(207,252,247,0.8), transparent);
+  background-size: 650px 650px; opacity: 0.5;
+  animation: twinkle 9s ease-in-out infinite alternate, scroll-stars 320s linear infinite; }
+@keyframes twinkle { 0% { opacity: 0.35; } 100% { opacity: 0.9; } }
+@keyframes scroll-stars { from { background-position: 0 0; } to { background-position: 0 -1000px; } }
 @keyframes drift {
   0%   { transform: translate3d(0,0,0) scale(1); }
   50%  { transform: translate3d(3%, 4%, 0) scale(1.08); }
@@ -53,7 +90,10 @@ html, body {
   backdrop-filter: blur(var(--blur)) saturate(160%);
   -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
   border: 1px solid var(--glass-brd);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.10);
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.45),
+    0 0 0 0.5px rgba(46,230,214,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.10);
 }
 
 /* top bar */
@@ -113,7 +153,10 @@ html, body {
   width: 30%; max-width: 150px; height: auto; aspect-ratio: 16/10;
   border-radius: var(--radius-sm); border: 2px solid rgba(255,255,255,0.35);
   object-fit: cover; box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  cursor: pointer; transition: transform .15s, border-color .2s; z-index: 5;
 }
+.cam-pip:hover { border-color: var(--accent); transform: scale(1.03); }
+.cam-pip:active { transform: scale(0.97); }
 .cam-overlay {
   position: absolute; inset: 0; pointer-events: none;
   display: flex; flex-direction: column; justify-content: space-between;
@@ -142,7 +185,10 @@ html, body {
   cursor: pointer; transition: transform .15s, background .2s;
 }
 .chip:active { transform: scale(0.92); }
-.chip.on { background: var(--accent); border-color: var(--accent); }
+.chip.on {
+  background: var(--accent); border-color: var(--accent); color: #04222020;
+  color: #032; box-shadow: 0 0 16px rgba(46,230,214,0.55);
+}
 
 /* chat */
 .chat {
@@ -329,4 +375,138 @@ html, body {
   .camera-wrap { flex: 1 1 60%; height: auto; min-height: 0; }
   .chat { flex: 1 1 40%; max-width: 460px; }
   .cmdbar { left: 50%; transform: translateX(-50%); max-width: 760px; width: calc(100% - 24px); }
+}
+
+/* WASD keyboard hint + drive speed control */
+#kbHint { display:inline-flex; align-items:center; gap:6px; opacity:0.85; }
+#kbHint b { color: var(--accent); font-variant-numeric: tabular-nums; }
+.speed-ctl { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:11px; opacity:0.85; }
+.speed-ctl input[type="range"] { width: 90px; accent-color: var(--accent); }
+
+
+/* ── Dataset schema reference (settings drawer) ─────────────────────────── */
+.schema-section { margin-top: 18px; border-top: 1px solid rgba(255,255,255,.08); padding-top: 14px; }
+.schema-section > summary { cursor: pointer; list-style: none; user-select: none; }
+.schema-section > summary::-webkit-details-marker { display: none; }
+.schema-section > summary h3 { margin: 0; }
+.schema-section[open] > summary h3::after { content: " ▾"; opacity: .5; }
+.schema-section:not([open]) > summary h3::after { content: " ▸"; opacity: .5; }
+.schema-tag { font-size: 10px; font-weight: 600; color: #76b900; border: 1px solid rgba(118,185,0,.4);
+  border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; letter-spacing: .04em; }
+.schema-group { margin-top: 12px; }
+.schema-head { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  opacity: .85; margin-bottom: 6px; }
+.schema-head .schema-dim { color: #ff2a6d; font-weight: 700; margin-left: 4px; }
+.schema-head small { font-weight: 400; opacity: .6; text-transform: none; letter-spacing: 0; }
+.schema-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.schema-table th { text-align: left; opacity: .55; font-weight: 600; padding: 3px 6px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.schema-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.05); vertical-align: top; }
+.schema-table td:first-child { white-space: nowrap; opacity: .6; font-variant-numeric: tabular-nums; }
+.schema-table code { font-size: 10.5px; background: rgba(255,255,255,.06); padding: 1px 4px; border-radius: 4px; line-height: 1.7; }
+.badge-new { font-size: 9px; font-weight: 700; color: #ffce1c; border: 1px solid rgba(255,206,28,.4);
+  border-radius: 5px; padding: 0 5px; margin-left: 4px; text-transform: uppercase; }
+.badge-ok { font-size: 9px; font-weight: 700; color: #00ff88; border: 1px solid rgba(0,255,136,.35);
+  border-radius: 5px; padding: 0 5px; margin-left: 4px; text-transform: uppercase; }
+
+/* 🔐 auth gate (WebAuthn passkey) */
+body.locked { overflow: hidden; }
+.auth-gate {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(10,10,15,.82), rgba(5,5,9,.96));
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+}
+.auth-gate.hidden { display: none; }
+.auth-card {
+  width: min(420px, 90vw);
+  padding: 34px 30px 26px;
+  border-radius: 22px;
+  text-align: center;
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 24px 70px rgba(0,0,0,.55), 0 0 40px rgba(118,185,0,.06);
+  animation: authIn .35s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes authIn { from { opacity:0; transform: translateY(14px) scale(.97);} to {opacity:1; transform:none;} }
+.auth-logo { font-size: 42px; line-height: 1; margin-bottom: 10px; filter: drop-shadow(0 4px 18px rgba(118,185,0,.35)); }
+.auth-card h2 { margin: 4px 0 8px; font-size: 22px; letter-spacing: .5px; }
+.auth-sub { margin: 0 auto 20px; max-width: 34ch; color: rgba(255,255,255,.62); font-size: 13.5px; line-height: 1.5; }
+.auth-field { text-align: left; margin: 0 0 16px; }
+.auth-field.hidden { display: none; }
+.auth-field label { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:rgba(255,255,255,.5); margin-bottom:6px; }
+.auth-field input {
+  width: 100%; padding: 11px 13px; border-radius: 11px;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.14);
+  color: #fff; font-size: 14px; outline: none;
+}
+.auth-field input:focus { border-color: rgba(118,185,0,.55); box-shadow: 0 0 0 3px rgba(118,185,0,.12); }
+.auth-btn {
+  width: 100%; padding: 14px; border: none; border-radius: 13px; cursor: pointer;
+  font-size: 15px; font-weight: 600; letter-spacing: .3px; color: #07120a;
+  background: linear-gradient(135deg, #9be319, #76b900);
+  box-shadow: 0 10px 30px rgba(118,185,0,.32);
+  transition: transform .12s ease, box-shadow .12s ease, opacity .12s;
+}
+.auth-btn:hover { transform: translateY(-1px); box-shadow: 0 14px 38px rgba(118,185,0,.42); }
+.auth-btn:active { transform: translateY(0); }
+.auth-btn:disabled { opacity: .55; cursor: progress; transform: none; }
+.auth-msg { min-height: 18px; margin-top: 14px; font-size: 13px; color: rgba(155,227,25,.9); }
+.auth-msg.err { color: #ff5d6c; }
+.auth-foot { margin: 16px 0 0; font-size: 11px; color: rgba(255,255,255,.35); }
+
+/* 🔑 passkey management (settings drawer) */
+.passkey-section { margin: 6px 0 18px; }
+.passkey-section h3 { margin: 0 0 4px; font-size: 14px; }
+.passkey-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.passkey-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 11px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.10);
+}
+.passkey-row.current { border-color: rgba(118,185,0,.45); background: rgba(118,185,0,.07); }
+.passkey-row .pk-icon { font-size: 16px; }
+.passkey-row .pk-name {
+  flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+  color: #fff; font-size: 14px; padding: 2px 4px; border-bottom: 1px dashed transparent;
+}
+.passkey-row .pk-name:focus { border-bottom-color: rgba(118,185,0,.5); }
+.passkey-row .pk-meta { font-size: 11px; color: rgba(255,255,255,.4); white-space: nowrap; }
+.passkey-row .pk-del { font-size: 14px; opacity: .6; }
+.passkey-row .pk-del:hover { opacity: 1; }
+#btnAddPasskey { width: 100%; justify-content: center; }
+.passkey-msg { min-height: 16px; margin-top: 8px; font-size: 12px; color: rgba(155,227,25,.9); }
+.passkey-msg.err { color: #ff5d6c; }
+
+/* ── Mobile topbar overflow fix ──────────────────────────────────────────
+   On narrow iPhones the brand + stat pills + 3 icon buttons (replay/lock/
+   settings) exceeded the row width, pushing ⚙️ settings off-screen with no
+   way to scroll to it. Keep brand + icon buttons fixed & always visible, and
+   let the stat-pills be the part that scrolls horizontally instead. */
+@media (max-width: 859px) {
+  .topbar { gap: 8px; padding: 10px 10px; }
+  .brand { flex: 0 1 auto; min-width: 0; }
+  .brand-txt { min-width: 0; }
+  .brand-txt strong,
+  .brand-txt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* pills become the flexible, horizontally-scrollable middle region */
+  .stat-pills {
+    flex: 1 1 auto; min-width: 0;
+    margin-left: auto;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;            /* firefox */
+    justify-content: flex-end;
+    padding-bottom: 1px;
+  }
+  .stat-pills::-webkit-scrollbar { display: none; }  /* ios/safari/chrome */
+  .pill { flex: 0 0 auto; }
+  /* icon buttons must never be the ones to overflow → keep them pinned */
+  .topbar .icon-btn { flex: 0 0 auto; width: 38px; height: 38px; font-size: 17px; }
+}
+
+/* very narrow phones: trim pill padding so everything fits without scroll */
+@media (max-width: 400px) {
+  .topbar { gap: 6px; }
+  .pill { padding: 4px 7px; font-size: 11px; }
+  .topbar .icon-btn { width: 36px; height: 36px; }
 }

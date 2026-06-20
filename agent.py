@@ -27,6 +27,7 @@ from tools.rover_camera import rover_see as _rover_see_tool
 import memory as _memory
 from tools.voice_bridge import voice_say as _voice_say
 from tools.reasoning_log import ReasoningLoggerHook
+from tools.dataset_index import dataset_index_block
 
 BASE_PROMPT = """You are scout, a friendly Earth Rover Mini sidewalk robot.
 
@@ -300,11 +301,44 @@ class _AutoRecorder:
 
 _auto_recorder = _AutoRecorder()
 
+_COSMOS_PROMPT = """
+🌌 COSMOS (NVIDIA world-model tools) — available on this device:
+  cosmos3_caption(video|image)   → detailed scene caption of a clip/frame
+  cosmos3_reason(prompt w/ <video>..</video> or <image>..</image>) → reason over vision
+  cosmos3_temporal(video)        → notable events with timestamps
+  cosmos3_ground(...)            → locate things spatially in a frame
+  cosmos3_text2video / image2video / text2image → GENERATE media (Diffusers, local)
+  video_extract_frames / video_probe → I/O helpers
+
+  🤖 EMBODIED / world-model reasoning (great for a robot):
+  cosmos3_embodied(video|image)        → predict your NEXT action from the scene
+  cosmos3_action_cot(image, task)      → plan a trajectory toward a task (CoT)
+  cosmos3_policy(jsonl)                → image+instruction → action chunk + rollout video
+  cosmos3_forward_dynamics(jsonl)      → "if I take these actions, what happens?" (predict future video)
+  cosmos3_inverse_dynamics(jsonl)      → "what actions produced this video?" (imitate)
+WHEN TO USE: for DEEP visual understanding beyond a single glance — e.g.
+"what happened in the last clip", physics/affordance reasoning, predicting the
+outcome of a maneuver before doing it, or imagining/previewing a path as video.
+Your normal rover_see frames + rover_move are still primary; reach for Cosmos
+when richer reasoning, planning, or generation is genuinely needed.
+"""
+
+
 def build_agent(extra_tools: Optional[list] = None) -> Agent:
     tools = [*ROVER_ALL_TOOLS, _voice_say, *(extra_tools or [])]
+    try:
+        from tools import COSMOS_AVAILABLE as _COSMOS
+    except Exception:
+        _COSMOS = False
+    cosmos_block = _COSMOS_PROMPT if _COSMOS else ""
+    # Surface local dataset media/trace paths so Cosmos tools get real file paths.
+    dataset_block = dataset_index_block() if _COSMOS else ""
     return Agent(
         tools=tools,
-        system_prompt=f"{_memory.recall_block()}\n{live_state_block()}\n{BASE_PROMPT}",
+        system_prompt=(
+            f"{_memory.recall_block()}\n{live_state_block()}\n{BASE_PROMPT}\n"
+            f"{cosmos_block}\n{dataset_block}"
+        ),
         hooks=[ReasoningLoggerHook(agent_id="main")],
     )
 

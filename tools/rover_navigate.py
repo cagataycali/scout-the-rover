@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 
 from strands import tool
 
-from ._rover_common import error_result, ok_result, sdk_get, b64_to_image_block
+from ._rover_common import error_result, ok_result, sdk_get, b64_to_image_block, apply_turn_sign
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +29,36 @@ def _clamp(v: float, lo: float = -1.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, float(v)))
 
 
+# Named speed presets → magnitude scalar in [0,1]. Lets the agent reason in
+# semantic terms ("crawl into a doorway", "fast down a clear hallway") instead
+# of guessing raw float magnitudes. Applied as a SCALE on a step's linear/angular.
+SPEED_PRESETS = {
+    "crawl":  0.20,
+    "slow":   0.35,
+    "normal": 0.55,
+    "fast":   0.80,
+    "max":    1.00,
+}
+DEFAULT_SPEED = "normal"
+
+
+def _speed_scale(speed) -> float:
+    """Resolve a speed token (name or float) to a [0,1] magnitude scale."""
+    if speed is None:
+        return SPEED_PRESETS[DEFAULT_SPEED]
+    if isinstance(speed, (int, float)):
+        return _clamp(float(speed), 0.0, 1.0)
+    key = str(speed).strip().lower()
+    return SPEED_PRESETS.get(key, SPEED_PRESETS[DEFAULT_SPEED])
+
+
 def _send_control(linear: float, angular: float) -> None:
     """Send a single /control frame. Raises on non-200."""
     from ._rover_common import sdk_post
-    resp = sdk_post("/control", json={"command": {"linear": linear, "angular": angular}})
+    # Correct physical turn direction at the wire; keep agent's intended value
+    # in ACTION_STATE for the recorder.
+    wire_angular = apply_turn_sign(angular)
+    resp = sdk_post("/control", json={"command": {"linear": linear, "angular": wire_angular}})
     if resp.status_code != 200:
         raise RuntimeError(f"/control HTTP {resp.status_code}: {resp.text[:200]}")
     # Publish to shared ACTION_STATE so the recorder logs the agent's command.
@@ -74,6 +100,7 @@ def _grab_camera_frame(camera: str = "front") -> Optional[Dict[str, Any]]:
 @tool
 def rover_navigate(
     steps: List[Dict[str, Any]],
+    default_speed: Any = "normal",
     look_every_n_steps: int = 0,
     look_camera: str = "front",
     stop_on_error: bool = True,
@@ -88,12 +115,23 @@ def rover_navigate(
     Args:
         steps: List of step dicts. Each step:
             {
-                "linear":   float,  # -1..1, default 0.0
-                "angular":  float,  # -1..1, default 0.0
+                "linear":   float,  # -1..1 forward/back (or DIRECTION if speed given)
+                "angular":  float,  # -1..1 turn (or DIRECTION if speed given)
+                "speed":    str|float,  # OPTIONAL named speed or 0..1 magnitude.
+                                        # names: crawl(0.20) slow(0.35) normal(0.55)
+                                        #        fast(0.80) max(1.00). When set, the
+                                        #        step's linear/angular are treated as
+                                        #        DIRECTION and scaled to this speed.
                 "duration": float,  # 0.1..10 seconds, default 1.0
                 "pause":    float,  # optional post-step idle (default 0)
                 "label":    str,    # optional human-readable name
             }
+        default_speed: Named speed ("crawl"/"slow"/"normal"/"fast"/"max") or a
+            0..1 float applied to any step that omits its own "speed". Lets the
+            agent pick a journey-wide pace (e.g. "crawl" through a cluttered room,
+            "fast" down a clear hallway) and override per-step as needed.
+            Steps that give raw linear/angular WITHOUT "speed" keep full manual
+            control (back-compat).
         look_every_n_steps: If > 0, capture a camera frame every N steps
             and inline it in the result so the agent can re-plan. 0 = off.
         look_camera: "front" or "rear" — which camera for periodic looks.
@@ -140,8 +178,23 @@ def rover_navigate(
                     break
                 continue
 
-            linear = _clamp(raw.get("linear", 0.0))
-            angular = _clamp(raw.get("angular", 0.0))
+            # Speed handling: a step may give raw linear/angular (full control),
+            # OR a named/float "speed" that scales the direction. If "speed" is
+            # present, linear/angular are treated as direction (sign) and the
+            # preset sets the magnitude. Falls back to default_speed for the call.
+            step_speed = raw.get("speed", default_speed)
+            scale = _speed_scale(step_speed)
+            raw_lin = float(raw.get("linear", 0.0))
+            raw_ang = float(raw.get("angular", 0.0))
+            if "speed" in raw and (raw_lin or raw_ang):
+                # direction-only inputs scaled by the named speed
+                import math
+                mag = math.hypot(raw_lin, raw_ang) or 1.0
+                linear = _clamp((raw_lin / mag) * scale)
+                angular = _clamp((raw_ang / mag) * scale)
+            else:
+                linear = _clamp(raw_lin)
+                angular = _clamp(raw_ang)
             duration = max(0.1, min(10.0, float(raw.get("duration", 1.0))))
             pause = max(0.0, min(5.0, float(raw.get("pause", 0.0))))
             label = str(raw.get("label", "")).strip()

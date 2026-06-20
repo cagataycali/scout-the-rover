@@ -182,23 +182,52 @@ STATE_NAMES = [
     "linear.vel", "angular.vel", "battery.level", "orientation.deg",
     "gps.latitude", "gps.longitude", "gps.signal", "signal.level",
     "vibration", "lamp.state",
-    # --- scout extras (appended; index 10..) ---
+    # --- scout extras: electrical (10..11) ---
     "voltage", "current",
+    # --- IMU: latest sample of the SDK burst arrays (12..17) ---
     "imu.accel.x", "imu.accel.y", "imu.accel.z",
     "imu.gyro.x", "imu.gyro.y", "imu.gyro.z",
+    # --- raw magnetometer x/y/z (18..20) -> absolute heading reference ---
+    "imu.mag.x", "imu.mag.y", "imu.mag.z",
+    # --- measured per-wheel odometry (21..24): fl, fr, rl, rr ---
+    "rpm.front_left", "rpm.front_right", "rpm.rear_left", "rpm.rear_right",
+    # --- extra electrical/system context (25..26) ---
+    "power", "network_state",
 ]
 
 # action aligns EXACTLY with the reference: 2-dim velocity command.
-# (lamp moved into observation.state as `lamp.state` — it is not an action.)
+# (lamp moved into observation.state as `lamp.state` -- it is not an action.)
 ACTION_NAMES = ["linear.vel", "angular.vel"]
 
 
+def _latest_sample(arr):
+    """Return the last sample from an SDK burst array, or [] if empty/invalid.
+
+    SDK bursts look like accels=[[x,y,z,ts], ...], rpms=[[fl,fr,rl,rr,ts], ...].
+    We take the most recent (last) sample so the 10Hz frame uses freshest data.
+    """
+    if isinstance(arr, list) and arr:
+        last = arr[-1]
+        if isinstance(last, (list, tuple)):
+            return list(last)
+    return []
+
+
 def _telemetry_to_state_vec(d: Dict[str, Any]) -> np.ndarray:
-    """Flatten /data telemetry → float32 state vector matching STATE_NAMES.
+    """Flatten /data telemetry -> float32 state vector matching STATE_NAMES.
 
     First 10 dims == official earthrover_mini_plus layout (dotted), then scout's
-    extra electrical + IMU dims. Missing fields → 0.0. Resilient to the SDK
-    exposing IMU either flat or under an `imu`/`IMU` subdict.
+    extra electrical + IMU + mag + rpm dims. Missing fields -> 0.0.
+
+    The Frodobots SDK exposes IMU/mag/rpm as *burst arrays* (multiple samples
+    per poll, each row ending in a unix timestamp), e.g.:
+        accels = [[ax, ay, az, ts], ...]   (~5 samples)
+        gyros  = [[gx, gy, gz, ts], ...]   (~5 samples)
+        mags   = [[mx, my, mz, ts], ...]   (~1 sample)
+        rpms   = [[fl, fr, rl, rr, ts], ...] (~5 samples)
+    We take the latest sample of each burst for the per-frame state. (Earlier
+    versions read flat accel_x/gyro_x keys which the cloud SDK never emits --
+    those dims were silently zero. This fixes that.)
     """
     imu = d.get("imu") or d.get("IMU") or {}
     if not isinstance(imu, dict):
@@ -217,10 +246,27 @@ def _telemetry_to_state_vec(d: Dict[str, Any]) -> np.ndarray:
     # ACTION_STATE carries the last commanded velocity (what the rover is doing).
     cmd = ACTION_STATE.snapshot()
 
+    # --- burst arrays: take latest sample (strip trailing timestamp) ---
+    accel = _latest_sample(d.get("accels"))      # [ax, ay, az, ts]
+    gyro = _latest_sample(d.get("gyros"))        # [gx, gy, gz, ts]
+    mag = _latest_sample(d.get("mags"))          # [mx, my, mz, ts]
+    rpm = _latest_sample(d.get("rpms"))          # [fl, fr, rl, rr, ts]
+
+    def idx(seq, i):
+        return seq[i] if isinstance(seq, list) and len(seq) > i else 0.0
+
+    # Fall back to flat keys (some firmware/local builds) before the burst array.
+    ax = g("accel_x", default=idx(accel, 0))
+    ay = g("accel_y", default=idx(accel, 1))
+    az = g("accel_z", default=idx(accel, 2))
+    gx = g("gyro_x", default=idx(gyro, 0))
+    gy = g("gyro_y", default=idx(gyro, 1))
+    gz = g("gyro_z", default=idx(gyro, 2))
+
     vals = [
-        # 0 linear.vel — prefer measured speed, fall back to commanded linear
+        # 0 linear.vel -- prefer measured speed, fall back to commanded linear
         g("speed", default=cmd.get("linear", 0.0)),
-        # 1 angular.vel — SDK rarely reports measured yaw rate; use commanded
+        # 1 angular.vel -- SDK rarely reports measured yaw rate; use commanded
         g("angular_velocity", "yaw_rate", default=cmd.get("angular", 0.0)),
         g("battery"),                              # 2 battery.level
         g("orientation"),                          # 3 orientation.deg
@@ -230,11 +276,20 @@ def _telemetry_to_state_vec(d: Dict[str, Any]) -> np.ndarray:
         g("signal_level"),                         # 7 signal.level
         g("vibration"),                            # 8 vibration
         g("lamp"),                                 # 9 lamp.state
-        # --- extras ---
+        # --- electrical extras ---
         g("voltage"),                              # 10
         g("current"),                              # 11
-        g("accel_x"), g("accel_y"), g("accel_z"),  # 12-14
-        g("gyro_x"), g("gyro_y"), g("gyro_z"),     # 15-17
+        # --- IMU latest-sample (12..17) ---
+        ax, ay, az,                                # 12-14 accel
+        gx, gy, gz,                                # 15-17 gyro
+        # --- magnetometer (18..20) ---
+        idx(mag, 0), idx(mag, 1), idx(mag, 2),     # 18-20 mag x/y/z
+        # --- per-wheel rpm (21..24) ---
+        idx(rpm, 0), idx(rpm, 1),                  # 21-22 front l/r
+        idx(rpm, 2), idx(rpm, 3),                  # 23-24 rear  l/r
+        # --- system context (25..26) ---
+        g("power"),                                # 25 power
+        g("network_state"),                        # 26 network_state
     ]
     out = np.zeros(len(STATE_NAMES), dtype=np.float32)
     for i, v in enumerate(vals[:len(STATE_NAMES)]):
@@ -243,7 +298,6 @@ def _telemetry_to_state_vec(d: Dict[str, Any]) -> np.ndarray:
         except (TypeError, ValueError):
             out[i] = 0.0
     return out
-
 
 # Engine
 

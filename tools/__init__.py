@@ -23,12 +23,14 @@ from .rover_state import rover_speak, rover_state
 from .rover_memory import rover_memory
 from .telegram import telegram
 from .voice_bridge import voice_say
+from .rover_cosmos import COSMOS_TOOLS, COSMOS_AVAILABLE
 
 ROVER_VISION_TOOLS = [rover_see, rover_screenshot]
 ROVER_MOTION_TOOLS = [rover_move, rover_navigate, rover_stop, rover_lamp]
 ROVER_STATE_TOOLS = [rover_state, rover_speak]
 ROVER_MEMORY_TOOLS = [rover_memory]
 ROVER_COMMS_TOOLS = [telegram, voice_say]
+ROVER_COSMOS_TOOLS = COSMOS_TOOLS  # 🌌 video/image understanding + generation (optional)
 ROVER_RECORDING_TOOLS = [start_recording, stop_recording, recording_status]
 ROVER_CONTROLLER_TOOLS = [controller_start, controller_stop, controller_status]
 
@@ -40,6 +42,7 @@ ROVER_ALL_TOOLS = [
     *ROVER_RECORDING_TOOLS,
     *ROVER_CONTROLLER_TOOLS,
     *ROVER_COMMS_TOOLS,
+    *ROVER_COSMOS_TOOLS,
 ]
 
 __all__ = [
@@ -53,4 +56,5 @@ __all__ = [
     "ROVER_VISION_TOOLS", "ROVER_MOTION_TOOLS", "ROVER_STATE_TOOLS",
     "ROVER_RECORDING_TOOLS", "ROVER_CONTROLLER_TOOLS", "ROVER_COMMS_TOOLS",
     "telegram", "voice_say",
+    "ROVER_COSMOS_TOOLS", "COSMOS_AVAILABLE",
 ]
