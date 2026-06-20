@@ -91,10 +91,10 @@ def _auth_guard_http(request: "Request"):
 
 
 @app.get("/auth/status")
-async def auth_status():
+async def auth_status(request: Request):
     if not _AUTH_OK:
         return {"enabled": False, "setup_required": False, "available": False}
-    return {**scout_auth.status(), "available": True}
+    return {**scout_auth.status(request), "available": True}
 
 
 @app.post("/auth/register/begin")
@@ -717,5 +717,32 @@ async def index():
 
 if __name__ == "__main__":
     import uvicorn
-    print(f"🛞 scout dashboard → http://localhost:{DASH_PORT}  (SDK: {ROVER_SDK_URL})")
-    uvicorn.run(app, host=DASH_HOST, port=DASH_PORT, log_level="info")
+
+    # 🔒 TLS for WebAuthn over LAN/IP. Passkeys require a secure context (HTTPS
+    # or http://localhost); plain http://<ip>:<port> blocks the ceremony. When
+    # DASH_TLS=true we serve HTTPS with an auto self-signed cert (or a supplied
+    # DASH_TLS_CERT/KEY). See tls.py.
+    ssl_kwargs = {}
+    scheme = "http"
+    try:
+        import tls as scout_tls
+        cert_key = scout_tls.ensure_cert()
+        if cert_key:
+            ssl_kwargs = {"ssl_certfile": cert_key[0], "ssl_keyfile": cert_key[1]}
+            scheme = "https"
+    except Exception as _e:
+        print(f"⚠️  TLS setup skipped: {_e}", flush=True)
+
+    if scheme == "https":
+        try:
+            for u in scout_tls.access_urls(DASH_PORT):
+                print(f"🛞 scout dashboard → {u}  (SDK: {ROVER_SDK_URL})")
+            print("   ↑ self-signed cert: accept the one-time browser warning (Advanced → Proceed).")
+            print("   ↑ passkeys/WebAuthn require this HTTPS origin to work over LAN/IP.")
+        except Exception:
+            print(f"🛞 scout dashboard → https://localhost:{DASH_PORT}  (SDK: {ROVER_SDK_URL})")
+    else:
+        print(f"🛞 scout dashboard → http://localhost:{DASH_PORT}  (SDK: {ROVER_SDK_URL})")
+        print("   ↑ HTTP: passkeys only work on localhost. For LAN/IP access set DASH_TLS=true.")
+
+    uvicorn.run(app, host=DASH_HOST, port=DASH_PORT, log_level="info", **ssl_kwargs)

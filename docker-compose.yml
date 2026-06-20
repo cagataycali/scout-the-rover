@@ -35,6 +35,7 @@ x-scout-common: &scout-common
     - ./captures:/app/captures
     - ./screenshots:/app/screenshots
     - hf-cache:/root/.cache/huggingface   # share warmed model weights across services
+    - scout-auth:/app/.scout_auth_vol     # passkeys + TLS cert persist (see DASH_TLS_DIR/SCOUT_AUTH_STORE)
 
 services:
   # ---- Earth Rovers SDK: camera/telemetry server (other svcs proxy this) ----
@@ -107,6 +108,17 @@ services:
       # talk to sdk service over the compose network
       ROVER_SDK_URL: "http://sdk:8002"
       COSMOS_REASONER_URL: "${COSMOS_REASONER_URL:-http://reasoner:8000/v1}"
+      # 🔒 TLS for WebAuthn over LAN/IP (passkeys need a secure context).
+      # DASH_TLS=true → auto self-signed cert on first boot (cached in volume).
+      # Set DASH_TLS_HOSTS to your rover's reachable name(s)/domain if any.
+      DASH_TLS: "${DASH_TLS:-true}"
+      DASH_TLS_DIR: "/app/.scout_auth_vol/tls"
+      DASH_TLS_HOSTS: "${DASH_TLS_HOSTS:-}"
+      DASH_TLS_CERT: "${DASH_TLS_CERT:-}"
+      DASH_TLS_KEY: "${DASH_TLS_KEY:-}"
+      SCOUT_AUTH_ENABLED: "${SCOUT_AUTH_ENABLED:-true}"
+      SCOUT_AUTH_STORE: "/app/.scout_auth_vol/auth.json"
+      SCOUT_AUTH_BOOTSTRAP_TOKEN: "${SCOUT_AUTH_BOOTSTRAP_TOKEN:-}"
     ports:
       - "${DASH_PORT:-8080}:8080"
     depends_on:
@@ -154,3 +166,4 @@ services:
 
 volumes:
   hf-cache:
+  scout-auth:

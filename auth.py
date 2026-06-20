@@ -59,6 +59,7 @@ Env knobs
 from __future__ import annotations
 
 import base64
+import ipaddress
 import json
 import os
 import secrets
@@ -177,6 +178,24 @@ def delete_credential(cred_id: str) -> Dict[str, Any]:
 def _host_only(host: str) -> str:
     # strip port for RP_ID (WebAuthn rpId is a domain, no port/scheme)
     return host.split(":")[0]
+
+
+def _is_ip(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        return False
+
+
+def rpid_is_usable(host_only: str) -> bool:
+    """WebAuthn rpId must be a registrable domain (or 'localhost'). A raw IP is
+    NOT a valid rpId — browsers reject the ceremony. Use a hostname/domain."""
+    if host_only == "localhost":
+        return True
+    if _is_ip(host_only):
+        return False
+    return "." in host_only or host_only.endswith(".local") or host_only != ""
 
 
 def _derive_rp_id(request_or_ws) -> str:
@@ -300,6 +319,13 @@ def begin_registration(request: Request, label: str = "admin passkey", bootstrap
             raise HTTPException(403, "bootstrap token required for first enrollment")
 
     rp_id = _derive_rp_id(request)
+    if not rpid_is_usable(rp_id):
+        raise HTTPException(
+            400,
+            f"WebAuthn cannot use '{rp_id}' (a raw IP) as the relying-party id. "
+            "Open the dashboard via a hostname instead (e.g. https://scout.local:PORT "
+            "or a /etc/hosts entry), or set SCOUT_AUTH_RP_ID to a domain you control.",
+        )
     # stable user handle (one admin identity; extra passkeys map to same user)
     user_id = store.get("user_id")
     if not user_id:
@@ -363,6 +389,13 @@ def begin_authentication(request: Request) -> Dict[str, Any]:
     if not store["credentials"]:
         raise HTTPException(400, "no credentials enrolled — setup required")
     rp_id = _derive_rp_id(request)
+    if not rpid_is_usable(rp_id):
+        raise HTTPException(
+            400,
+            f"WebAuthn cannot use '{rp_id}' (a raw IP) as the relying-party id. "
+            "Open the dashboard via a hostname (https://scout.local:PORT or a hosts "
+            "entry), or set SCOUT_AUTH_RP_ID to a domain.",
+        )
     allow = [
         PublicKeyCredentialDescriptor(id=base64url_to_bytes(c["id"]))
         for c in store["credentials"]
@@ -405,11 +438,30 @@ def finish_authentication(request: Request, challenge_id: str, credential: dict)
     return {"ok": True, "token": token, "credential_id": cred_id}
 
 
-def status() -> Dict[str, Any]:
+def status(request=None) -> Dict[str, Any]:
     store = _load()
-    return {
+    out = {
         "enabled": AUTH_ENABLED,
         "setup_required": len(store["credentials"]) == 0,
         "credentials": list_credentials(),
         "bootstrap_required": bool(BOOTSTRAP_TOKEN) and len(store["credentials"]) == 0,
     }
+    # warn if the current origin can't do WebAuthn (raw IP host, or insecure http)
+    if request is not None:
+        try:
+            host = _host_only(request.headers.get("host", ""))
+            origin = _derive_origin(request)
+            secure = origin.startswith("https://") or host == "localhost"
+            usable = rpid_is_usable(host) if not FORCE_RP_ID else True
+            out["rp_id"] = FORCE_RP_ID or host
+            out["secure_context"] = secure
+            out["rpid_usable"] = usable
+            if not secure:
+                out["warning"] = ("This origin is not a secure context. WebAuthn needs "
+                                  "HTTPS (or http://localhost). Set DASH_TLS=true.")
+            elif not usable:
+                out["warning"] = (f"'{host}' is a raw IP — WebAuthn needs a hostname/domain "
+                                  "as rpId. Use https://<name>:PORT or set SCOUT_AUTH_RP_ID.")
+        except Exception:
+            pass
+    return out

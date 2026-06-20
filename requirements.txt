@@ -10,3 +10,4 @@ pygame>=2.5
 uvicorn>=0.30
 webauthn>=2.0
 PyJWT>=2.8
+cryptography>=42

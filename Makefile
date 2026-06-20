@@ -35,6 +35,11 @@ dashboard: venv ## start the web dashboard (drive scout from a browser)
 	@echo "🛞 dashboard → http://localhost:$${DASH_PORT:-8080}  (needs 'make sdk-up' for camera/telemetry)"
 	@$(PY) dashboard_server.py
 
+.PHONY: dashboard-tls
+dashboard-tls: venv ## start the dashboard over HTTPS (self-signed) so WebAuthn works on LAN/IP
+	@echo "🔒 dashboard (HTTPS) → https://localhost:$${DASH_PORT:-8443}  — accept the self-signed warning once"
+	@DASH_TLS=true DASH_PORT=$${DASH_PORT:-8443} $(PY) dashboard_server.py
+
 .PHONY: sdk
 sdk: $(SDK_DIR)/.cloned ## clone + setup earth-rovers-sdk (our fork)
 

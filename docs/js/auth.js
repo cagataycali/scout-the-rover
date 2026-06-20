@@ -196,6 +196,16 @@ window.SCOUT_TOKEN = ScoutAuth.getToken();
 
   const mode = st.setup_required ? 'setup' : 'login';
 
+  // Surface a clear warning if WebAuthn can't run here (raw IP / insecure http).
+  if (st.warning) {
+    subEl.textContent = st.warning;
+    subEl.style.color = '#ffb454';
+    if (st.secure_context === false || st.rpid_usable === false) {
+      // still render the button but it will fail with a helpful server message
+      setMsg('⚠️ ' + st.warning, true);
+    }
+  }
+
   if (mode === 'setup') {
     titleEl.textContent = '🔐 Seal this rover';
     subEl.textContent =

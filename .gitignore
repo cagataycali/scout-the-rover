@@ -27,3 +27,5 @@ notes.md
 *.pt
 yolov8n.pt
 .scout_auth.json
+.scout_tls/
+

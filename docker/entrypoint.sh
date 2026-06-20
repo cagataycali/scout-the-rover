@@ -40,6 +40,8 @@ start_sdk() {
 }
 
 start_dashboard() {
+  # ensure the persisted auth/TLS dir exists (named volume mount point)
+  mkdir -p "${SCOUT_AUTH_STORE%/*}" "${DASH_TLS_DIR:-/app/.scout_tls}" 2>/dev/null || true
   exec python3 /app/dashboard_server.py
 }
 
