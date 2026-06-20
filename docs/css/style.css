@@ -476,3 +476,37 @@ body.locked { overflow: hidden; }
 #btnAddPasskey { width: 100%; justify-content: center; }
 .passkey-msg { min-height: 16px; margin-top: 8px; font-size: 12px; color: rgba(155,227,25,.9); }
 .passkey-msg.err { color: #ff5d6c; }
+
+/* ── Mobile topbar overflow fix ──────────────────────────────────────────
+   On narrow iPhones the brand + stat pills + 3 icon buttons (replay/lock/
+   settings) exceeded the row width, pushing ⚙️ settings off-screen with no
+   way to scroll to it. Keep brand + icon buttons fixed & always visible, and
+   let the stat-pills be the part that scrolls horizontally instead. */
+@media (max-width: 859px) {
+  .topbar { gap: 8px; padding: 10px 10px; }
+  .brand { flex: 0 1 auto; min-width: 0; }
+  .brand-txt { min-width: 0; }
+  .brand-txt strong,
+  .brand-txt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* pills become the flexible, horizontally-scrollable middle region */
+  .stat-pills {
+    flex: 1 1 auto; min-width: 0;
+    margin-left: auto;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;            /* firefox */
+    justify-content: flex-end;
+    padding-bottom: 1px;
+  }
+  .stat-pills::-webkit-scrollbar { display: none; }  /* ios/safari/chrome */
+  .pill { flex: 0 0 auto; }
+  /* icon buttons must never be the ones to overflow → keep them pinned */
+  .topbar .icon-btn { flex: 0 0 auto; width: 38px; height: 38px; font-size: 17px; }
+}
+
+/* very narrow phones: trim pill padding so everything fits without scroll */
+@media (max-width: 400px) {
+  .topbar { gap: 6px; }
+  .pill { padding: 4px 7px; font-size: 11px; }
+  .topbar .icon-btn { width: 36px; height: 36px; }
+}
