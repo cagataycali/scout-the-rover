@@ -30,7 +30,18 @@ from strands import tool
 TOKEN = os.getenv("SCOUT_TELEGRAM_BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN", "")
 DEFAULT_CHAT_ID = os.getenv("SCOUT_TELEGRAM_DEFAULT_CHAT_ID") or os.getenv("TELEGRAM_DEFAULT_CHAT_ID", "")
 ALLOWED = {u.strip() for u in (os.getenv("SCOUT_TELEGRAM_ALLOWED_USERS") or os.getenv("TELEGRAM_ALLOWED_USERS", "")).split(",") if u.strip()}
-HISTORY_LIMIT = int(os.getenv("SCOUT_TELEGRAM_HISTORY_LIMIT") or os.getenv("TELEGRAM_HISTORY_LIMIT", "20"))
+def _env_int(*names, default=20):
+    for n in names:
+        v = os.getenv(n)
+        if v is not None:
+            v = v.strip().strip('"').strip("'").strip()
+            try:
+                return int(v)
+            except ValueError:
+                continue
+    return default
+
+HISTORY_LIMIT = _env_int("SCOUT_TELEGRAM_HISTORY_LIMIT", "TELEGRAM_HISTORY_LIMIT", default=20)
 API = lambda: f"https://api.telegram.org/bot{TOKEN}"
 
 ROOT = Path(__file__).resolve().parent.parent
