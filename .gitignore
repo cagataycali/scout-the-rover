@@ -26,3 +26,4 @@ notes.md
 # Model weights (auto-downloaded)
 *.pt
 yolov8n.pt
+.scout_auth.json

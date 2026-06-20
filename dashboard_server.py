@@ -39,6 +39,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
+# 🔐 WebAuthn auth guard (passkey passwordless)
+try:
+    import auth as scout_auth
+    _AUTH_OK = True
+except Exception as _e:
+    print(f"⚠️  auth module not loaded: {_e}", flush=True)
+    scout_auth = None
+    _AUTH_OK = False
+
 ROOT = Path(__file__).resolve().parent
 DOCS = ROOT / "docs"
 ENV_FILE = ROOT / ".env"
@@ -71,6 +80,100 @@ try:
     dashboard_replay.mount(app)
 except Exception as _e:
     print(f"⚠️  replay API not mounted: {_e}", flush=True)
+
+# 🔐 Auth routes (WebAuthn passkey) + guards
+
+def _auth_guard_http(request: "Request"):
+    """Raise 401 unless authed. No-op if auth module/feature disabled."""
+    if not _AUTH_OK or scout_auth is None:
+        return None
+    return scout_auth.require_auth(request)
+
+
+@app.get("/auth/status")
+async def auth_status():
+    if not _AUTH_OK:
+        return {"enabled": False, "setup_required": False, "available": False}
+    return {**scout_auth.status(), "available": True}
+
+
+@app.post("/auth/register/begin")
+async def auth_register_begin(request: Request):
+    if not _AUTH_OK:
+        raise HTTPException(503, "auth unavailable")
+    body = await request.json()
+    # If credentials already exist, adding another passkey requires a session.
+    if scout_auth.has_credentials():
+        scout_auth.require_auth(request)
+    return scout_auth.begin_registration(
+        request,
+        label=body.get("label", "admin passkey"),
+        bootstrap=body.get("bootstrap", ""),
+    )
+
+
+@app.post("/auth/register/finish")
+async def auth_register_finish(request: Request):
+    if not _AUTH_OK:
+        raise HTTPException(503, "auth unavailable")
+    body = await request.json()
+    res = scout_auth.finish_registration(
+        request, body.get("challenge_id", ""), body.get("credential", {})
+    )
+    resp = JSONResponse(res)
+    resp.set_cookie("scout_session", res["token"], httponly=True, samesite="lax", max_age=scout_auth.TOKEN_TTL)
+    return resp
+
+
+@app.post("/auth/login/begin")
+async def auth_login_begin(request: Request):
+    if not _AUTH_OK:
+        raise HTTPException(503, "auth unavailable")
+    return scout_auth.begin_authentication(request)
+
+
+@app.post("/auth/login/finish")
+async def auth_login_finish(request: Request):
+    if not _AUTH_OK:
+        raise HTTPException(503, "auth unavailable")
+    body = await request.json()
+    res = scout_auth.finish_authentication(
+        request, body.get("challenge_id", ""), body.get("credential", {})
+    )
+    resp = JSONResponse(res)
+    resp.set_cookie("scout_session", res["token"], httponly=True, samesite="lax", max_age=scout_auth.TOKEN_TTL)
+    return resp
+
+
+@app.post("/auth/logout")
+async def auth_logout():
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie("scout_session")
+    return resp
+
+
+# 🔐 Global auth middleware — seals every /api/* route (incl. replay) behind a
+# valid session. Public allowlist: the auth ceremony, static assets, the page
+# shell (so the login screen can load), and nothing that touches the rover.
+_PUBLIC_PREFIXES = ("/auth/", "/css/", "/js/")
+_PUBLIC_EXACT = {"/", "/replay", "/favicon.ico", "/api/health"}
+
+
+@app.middleware("http")
+async def _auth_middleware(request: Request, call_next):
+    if not (_AUTH_OK and scout_auth and scout_auth.AUTH_ENABLED):
+        return await call_next(request)
+    path = request.url.path
+    if path in _PUBLIC_EXACT or any(path.startswith(p) for p in _PUBLIC_PREFIXES):
+        return await call_next(request)
+    # everything else under /api requires a session
+    if path.startswith("/api/"):
+        try:
+            scout_auth.require_auth(request)
+        except HTTPException as e:
+            return JSONResponse({"error": e.detail}, status_code=e.status_code)
+    return await call_next(request)
+
 
 # Agent session — lazily built so the server boots even if creds are missing.
 # Rebuilt whenever config (system prompt / model) changes via the dashboard.
@@ -209,6 +312,11 @@ def _get_active_prompt() -> str:
 @app.websocket("/ws/chat")
 async def ws_chat(ws: WebSocket):
     await ws.accept()
+    if _AUTH_OK and scout_auth and scout_auth.AUTH_ENABLED:
+        if scout_auth.require_ws_auth(ws) is None:
+            await ws.send_text(json.dumps({"type": "error", "error": "auth required"}))
+            await ws.close(code=4401)
+            return
     try:
         while True:
             raw = await ws.receive_text()
@@ -299,7 +407,8 @@ async def _sdk_control(linear: float, angular: float, duration: float):
 
 
 @app.get("/api/telemetry")
-async def api_telemetry():
+async def api_telemetry(request: Request):
+    _auth_guard_http(request)
     try:
         return JSONResponse(await asyncio.to_thread(_sdk_get, "/data"))
     except Exception as e:
@@ -307,7 +416,8 @@ async def api_telemetry():
 
 
 @app.get("/api/frame/{view}")
-async def api_frame(view: str):
+async def api_frame(view: str, request: Request):
+    _auth_guard_http(request)
     """Proxy a single camera frame. view ∈ {front, rear}."""
     if view not in ("front", "rear"):
         raise HTTPException(400, "view must be front or rear")
@@ -319,7 +429,8 @@ async def api_frame(view: str):
 
 
 @app.get("/api/screenshot")
-async def api_screenshot(views: str = "front,rear,map"):
+async def api_screenshot(request: Request, views: str = "front,rear,map"):
+    _auth_guard_http(request)
     try:
         return JSONResponse(
             await asyncio.to_thread(lambda: _sdk_get("/screenshot", view_types=views))
@@ -330,6 +441,7 @@ async def api_screenshot(views: str = "front,rear,map"):
 
 @app.post("/api/control")
 async def api_control(request: Request):
+    _auth_guard_http(request)
     body = await request.json()
     await _sdk_control(
         float(body.get("linear", 0)),
@@ -341,6 +453,7 @@ async def api_control(request: Request):
 
 @app.post("/api/lamp")
 async def api_lamp(request: Request):
+    _auth_guard_http(request)
     body = await request.json()
     on = bool(body.get("on", True))
     # SDK control accepts a lamp field in command on many firmwares
@@ -350,6 +463,7 @@ async def api_lamp(request: Request):
 
 @app.post("/api/speak")
 async def api_speak(request: Request):
+    _auth_guard_http(request)
     body = await request.json()
     text = (body.get("text") or "").strip()
     if not text:
@@ -372,7 +486,8 @@ def _mask(k: str, v: str) -> str:
 
 
 @app.get("/api/config")
-async def api_config():
+async def api_config(request: Request):
+    _auth_guard_http(request)
     import agent as scout_agent
     env = dotenv_values(ENV_FILE) if ENV_FILE.exists() else {}
     masked = {k: _mask(k, v or "") for k, v in env.items()}
@@ -391,6 +506,7 @@ async def api_config():
 async def api_config_update(request: Request):
     """Update system prompt / model / env vars. Rebuilds the agent."""
     global _active_prompt_override
+    _auth_guard_http(request)
     body = await request.json()
 
     if "system_prompt" in body:
@@ -452,6 +568,11 @@ async def api_health():
 @app.websocket("/ws/voice")
 async def ws_voice(ws: WebSocket):
     await ws.accept()
+    if _AUTH_OK and scout_auth and scout_auth.AUTH_ENABLED:
+        if scout_auth.require_ws_auth(ws) is None:
+            await ws.send_text(json.dumps({"type": "error", "error": "auth required"}))
+            await ws.close(code=4401)
+            return
     loop = asyncio.get_event_loop()
     in_q: "asyncio.Queue[bytes]" = asyncio.Queue()
     stop_evt = threading.Event()

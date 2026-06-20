@@ -15,6 +15,23 @@
 <div class="stars2"></div>
 <div class="stars3"></div>
 
+<!-- 🔐 auth gate (WebAuthn passkey) -->
+<div class="auth-gate hidden" id="authGate">
+  <div class="auth-card glass" id="authCard">
+    <div class="auth-logo">🛞🔐</div>
+    <h2 id="authTitle">scout</h2>
+    <p class="auth-sub" id="authSub">authenticating…</p>
+    <div class="auth-field hidden" id="authBootstrapWrap">
+      <label>Bootstrap token</label>
+      <input id="authBootstrap" type="password" placeholder="one-time setup secret" autocomplete="off" />
+    </div>
+    <button class="auth-btn" id="authPrimary">✦ Continue</button>
+    <div class="auth-msg" id="authMsg"></div>
+    <p class="auth-foot">Passwordless · your key never leaves this device.</p>
+  </div>
+</div>
+
+
 <!-- top status bar -->
 <header class="topbar glass">
   <div class="brand">
@@ -30,6 +47,7 @@
     <div class="pill" id="pillGps"><span class="pi">📍</span><span class="pv" id="vGps">--</span></div>
   </div>
   <a class="icon-btn" href="/replay" aria-label="replay" title="recordings replay" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">🎞️</a>
+  <button class="icon-btn" id="btnLock" aria-label="lock" title="lock / sign out" onclick="window.ScoutAuth && window.ScoutAuth.logout()">🔒</button>
   <button class="icon-btn" id="btnSettings" aria-label="settings">⚙️</button>
 </header>
 
@@ -185,6 +203,7 @@
 
 <div class="toast-host" id="toastHost"></div>
 
+<script src="js/auth.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

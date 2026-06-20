@@ -6,6 +6,9 @@ WS chat streaming · camera polling · telemetry · joystick · voice · config.
 
 const $ = (id) => document.getElementById(id);
 const LS = window.localStorage;
+const authToken = () => (window.SCOUT_TOKEN || LS.getItem('scout_token') || '');
+const withAuth = (h = {}) => (authToken() ? { ...h, Authorization: `Bearer ${authToken()}` } : h);
+
 
 // connection config 
 // WS URL is a parameter: ?ws=... query → localStorage → page origin.
@@ -73,7 +76,7 @@ function setConn(state) {
 
 function connectChat() {
   try { if (chatWs) chatWs.close(); } catch (_) {}
-  const url = `${wsBase()}/ws/chat`;
+  const url = `${wsBase()}/ws/chat` + (authToken() ? `?token=${encodeURIComponent(authToken())}` : '');
   setConn('connecting…');
   chatWs = new WebSocket(url);
 
@@ -133,7 +136,7 @@ $('cmdInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendCh
 // telemetry polling 
 async function pollTelemetry() {
   try {
-    const r = await fetch(`${httpBase()}/api/telemetry`);
+    const r = await fetch(`${httpBase()}/api/telemetry`, { headers: withAuth() });
     if (!r.ok) throw 0;
     const d = await r.json();
     const bat = d.battery ?? d.battery_level ?? '--';
@@ -155,7 +158,7 @@ async function pollTelemetry() {
 let frontFirst = true; // which cam is the big one
 async function pollCam(view, imgEl) {
   try {
-    const r = await fetch(`${httpBase()}/api/frame/${view}`);
+    const r = await fetch(`${httpBase()}/api/frame/${view}`, { headers: withAuth() });
     if (!r.ok) return;
     const d = await r.json();
     const b64 = d[`${view}_frame`];
@@ -188,7 +191,7 @@ $('btnLamp').addEventListener('click', async () => {
   $('btnLamp').classList.toggle('on', lampOn);
   try {
     await fetch(`${httpBase()}/api/lamp`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: withAuth({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ on: lampOn }),
     });
   } catch { toast('lamp failed', 'err'); }
@@ -340,7 +343,7 @@ async function startVoice() {
   } catch { toast('mic permission denied', 'err'); return; }
 
   audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-  voiceWs = new WebSocket(`${wsBase()}/ws/voice`);
+  voiceWs = new WebSocket(`${wsBase()}/ws/voice` + (authToken() ? `?token=${encodeURIComponent(authToken())}` : ''));
   voiceWs.binaryType = 'arraybuffer';
 
   voiceWs.onopen = () => {
@@ -417,7 +420,7 @@ let _envState = {};
 async function loadConfig() {
   $('cfgWsUrl').value = LS.getItem('scout_ws') || defaultBase();
   try {
-    const r = await fetch(`${httpBase()}/api/config`);
+    const r = await fetch(`${httpBase()}/api/config`, { headers: withAuth() });
     const c = await r.json();
     $('cfgPrompt').value = c.system_prompt || '';
     $('cfgModel').value = c.model_id || '';
@@ -456,7 +459,7 @@ $('btnEnvAdd').addEventListener('click', () => {
 $('btnResetPrompt').addEventListener('click', async () => {
   try {
     await fetch(`${httpBase()}/api/config`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: withAuth({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ reset_prompt: true }),
     });
     await loadConfig();
@@ -484,7 +487,7 @@ $('btnSaveCfg').addEventListener('click', async () => {
   };
   try {
     await fetch(`${httpBase()}/api/config`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: withAuth({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     });
     toast('saved & applied', 'ok');
