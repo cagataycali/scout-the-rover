@@ -57,19 +57,30 @@ def rover_see(
 
     wanted = ["front", "rear"] if camera == "both" else [camera]
     for cam in wanted:
+        b64 = None
+        # Primary: fast /v2/<cam>
         try:
             resp = sdk_get(f"/v2/{cam}")
             if resp.status_code == 200:
-                data = resp.json()
-                b64 = data.get(f"{cam}_frame")
-                if b64:
-                    frames.append((cam, b64))
-                else:
-                    errors.append(f"{cam}: empty frame")
+                b64 = resp.json().get(f"{cam}_frame")
             else:
-                errors.append(f"{cam}: HTTP {resp.status_code}")
+                errors.append(f"{cam}: /v2 HTTP {resp.status_code}")
         except Exception as e:
-            errors.append(f"{cam}: {e}")
+            errors.append(f"{cam}: /v2 {e}")
+        # Fallback: /screenshot render (works when /v2 fast-path is uninitialized)
+        if not b64:
+            try:
+                sresp = sdk_get("/screenshot", view_types=cam)
+                if sresp.status_code == 200:
+                    b64 = sresp.json().get(f"{cam}_frame")
+                    if b64:
+                        errors.append(f"{cam}: used /screenshot fallback")
+            except Exception as e:
+                errors.append(f"{cam}: /screenshot {e}")
+        if b64:
+            frames.append((cam, b64))
+        else:
+            errors.append(f"{cam}: no frame")
 
     if not frames:
         return error_result(

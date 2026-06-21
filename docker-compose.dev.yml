@@ -1,0 +1,21 @@
+# Dev override: mount the repo into /app so code changes apply on restart
+# (no image rebuild needed). Use: docker compose -f docker-compose.yml -f docker-compose.dev.yml ...
+services:
+  media:
+    volumes:
+      - .:/app
+  yolo:
+    volumes:
+      - .:/app
+  cosmos_buffer:
+    volumes:
+      - .:/app
+  telegram:
+    volumes:
+      - .:/app
+  thinker:
+    volumes:
+      - .:/app
+  listener:
+    volumes:
+      - .:/app

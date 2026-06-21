@@ -219,7 +219,7 @@ make unpersist          # stop + remove both
 bridge up on `:8002` and **auto-joins** Agora on boot:
 
 ```bash
-sudo cp earth-rovers-sdk.service /etc/systemd/system/
+sudo cp deploy/earth-rovers-sdk.service /etc/systemd/system/
 sudo systemctl enable --now earth-rovers-sdk
 ```
 
@@ -494,3 +494,15 @@ MIT — go drive something.
 _built with [Strands Agents](https://strandsagents.com) · scout says hi 🛞_
 
 </div>
+
+
+## 👂 Voice listener (voice-activated agent)
+
+`make listen` starts a background **listener agent** — a peer to the telegram/thinker loops. It drains the rover's microphone (`/rover-mic`), runs energy-based VAD to segment speech, transcribes with Whisper (`faster-whisper` preferred), and triggers the full scout agent with the utterance as one input (live camera + room map + pose injected).
+
+```bash
+make listen                      # trigger on ANY speech
+LISTENER_WAKE_WORD='hey scout' make listen   # only on wake phrase
+```
+
+Tuning env: `LISTENER_ENERGY_THRESHOLD`, `LISTENER_SILENCE_SEC`, `LISTENER_WHISPER_MODEL`, `LISTENER_COOLDOWN_SEC`, `LISTENER_WAKE_WORD`. Install transcription with `pip install faster-whisper` (degrades to voice-detection-only without it). Durable service: `deploy/scout-listener.service`.

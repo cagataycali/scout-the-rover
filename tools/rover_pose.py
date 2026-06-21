@@ -46,6 +46,10 @@ ANG_SPEED_MAX = float(os.getenv("SCOUT_ANG_SPEED_MAX", "1.20"))   # rad/s at ful
 # Complementary-filter weight: how strongly the IMU absolute heading pulls the
 # integrated yaw back to truth each correction. 0 = ignore IMU, 1 = trust IMU.
 IMU_YAW_TRUST = float(os.getenv("SCOUT_IMU_YAW_TRUST", "0.15"))
+# Pose is auto-flagged STALE (needs re-seed) if older than this or odometer
+# exceeds this drift budget — dead-reckoning is only trustworthy fresh.
+POSE_STALE_SECONDS = float(os.getenv("SCOUT_POSE_STALE_SECONDS", "1800"))   # 30 min
+POSE_DRIFT_BUDGET_M = float(os.getenv("SCOUT_POSE_DRIFT_BUDGET_M", "8"))    # meters
 
 _POSE_FILE = Path(os.getenv("SCOUT_POSE_FILE",
                             str(Path(__file__).resolve().parent.parent / ".scout_pose.json")))
@@ -63,6 +67,8 @@ class _Pose:
         self.imu_yaw_at_seed: Optional[float] = None   # IMU orientation when seeded
         self.last_update = time.time()
         self.total_dist = 0.0   # odometer (m), for drift awareness
+        self.stale = False      # flagged when pose is too old/drifted to trust
+        self.seeded_at = 0.0
         self._load()
 
     # ── persistence ────────────────────────────────────────────────────
@@ -76,6 +82,14 @@ class _Pose:
                 self.seeded = bool(d.get("seeded", False))
                 self.imu_yaw_at_seed = d.get("imu_yaw_at_seed")
                 self.total_dist = float(d.get("total_dist", 0.0))
+                self.last_update = float(d.get("last_update", time.time()))
+                self.seeded_at = float(d.get("seeded_at", self.last_update))
+                # Evaluate staleness on load: a pose carried over from a
+                # previous session (old, or with a big odometer) is no longer
+                # trustworthy — keep the values but FLAG for re-seed.
+                age = time.time() - self.last_update
+                if self.seeded and (age > POSE_STALE_SECONDS or self.total_dist > POSE_DRIFT_BUDGET_M):
+                    self.stale = True
         except Exception:
             pass
 
@@ -93,6 +107,9 @@ class _Pose:
             "imu_yaw_at_seed": self.imu_yaw_at_seed,
             "total_dist": round(self.total_dist, 2),
             "age_s": round(time.time() - self.last_update, 1),
+            "stale": self.stale,
+            "last_update": self.last_update,
+            "seeded_at": self.seeded_at,
         }
 
     # ── seeding ────────────────────────────────────────────────────────
@@ -102,8 +119,11 @@ class _Pose:
             self.x, self.y = float(x), float(y)
             self.yaw = math.radians(float(yaw_deg))
             self.seeded = True
+            self.stale = False
+            self.total_dist = 0.0
             self.imu_yaw_at_seed = imu_orientation
             self.last_update = time.time()
+            self.seeded_at = self.last_update
             self._save()
 
     # ── integration ────────────────────────────────────────────────────
@@ -230,6 +250,17 @@ def pose_block() -> str:
                 "Scout does NOT yet know its position in the room. Drop a seed "
                 "with rover_pose(action='seed', x=.., y=.., yaw_deg=..) once you "
                 "place it at a known spot on the map.\n")
+    # STALE = carried over from a previous session / drifted too far → DO NOT trust.
+    if s.get("stale"):
+        return (
+            "## 🧭 ESTIMATED POSE: ⚠️ STALE — DO NOT TRUST.\n"
+            f"A pose from a previous session is on file ({s['x']:+.2f},{s['y']:+.2f} "
+            f"@ {s['yaw_deg']:.0f}°, odometer {s['total_dist']:.1f} m, "
+            f"{s['age_s']/60:.0f} min old) but it has drifted/aged past the trust "
+            "budget. Scout does NOT reliably know its position right now.\n"
+            "→ Re-seed from a confident visual fix: identify a mapped landmark in "
+            "the camera, then rover_pose(action='seed', x=.., y=.., yaw_deg=..).\n"
+        )
     near = _nearest_objects(s["x"], s["y"])
     near_txt = ""
     if near:

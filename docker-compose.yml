@@ -135,6 +135,52 @@ services:
       sdk:
         condition: service_healthy
 
+  # ---- MediaHub: single drainer → fan-out mic/front/rear/data to all -------
+  media:
+    <<: *scout-common
+    container_name: scout-media
+    command: ["media"]
+    environment:
+      ROVER_SDK_URL: "http://sdk:8002"
+      MEDIA_HUB_PORT: "8090"
+    ports:
+      - "${MEDIA_HUB_PORT:-8090}:8090"
+    depends_on:
+      sdk:
+        condition: service_healthy
+    profiles: ["media", "listener", "all"]
+
+  # ---- YOLO detector: object detection on video → dataset sidecar ----------
+  yolo:
+    <<: *scout-common
+    container_name: scout-yolo
+    command: ["yolo"]
+    environment:
+      MEDIA_HUB_URL: "http://media:8090"
+      YOLO_MODEL: "${YOLO_MODEL:-yolov8n.pt}"
+      YOLO_CONF: "${YOLO_CONF:-0.35}"
+      YOLO_EVERY_N: "${YOLO_EVERY_N:-2}"
+      DET_BACKEND: "${DET_BACKEND:-yolo}"           # yolo | locate (LocateAnything-3B)
+      LOCATE_QUERY: "${LOCATE_QUERY:-person. chair. sofa. table. door. plant.}"
+      LOCATE_MODEL: "${LOCATE_MODEL:-nvidia/LocateAnything-3B}"
+    depends_on:
+      sdk:
+        condition: service_healthy
+    profiles: ["yolo", "all"]
+
+  # ---- Cosmos buffer: rolling video clips for Cosmos reasoning --------------
+  cosmos_buffer:
+    <<: *scout-common
+    container_name: scout-cosmos-buffer
+    command: ["cosmos_buffer"]
+    environment:
+      MEDIA_HUB_URL: "http://media:8090"
+      COSMOS_CLIP_SECONDS: "${COSMOS_CLIP_SECONDS:-4}"
+    depends_on:
+      sdk:
+        condition: service_healthy
+    profiles: ["cosmos", "all"]
+
   # ---- Telegram listener: chat/drive scout from your phone ------------------
   telegram:
     <<: *scout-common
@@ -154,11 +200,28 @@ services:
     command: ["thinker"]
     environment:
       ROVER_SDK_URL: "http://sdk:8002"
+      MEDIA_HUB_URL: "http://media:8090"
       THINKER_INTERVAL: "${THINKER_INTERVAL:-60}"
     depends_on:
       sdk:
         condition: service_healthy
     profiles: ["thinker", "all"]
+
+  # ---- Voice listener: rover mic → VAD → whisper → triggers the agent -------
+  listener:
+    <<: *scout-common
+    container_name: scout-listener
+    command: ["listener"]
+    environment:
+      ROVER_SDK_URL: "http://sdk:8002"
+      MEDIA_HUB_URL: "http://media:8090"
+      LISTENER_WAKE_WORD: "${LISTENER_WAKE_WORD:-}"
+      LISTENER_WHISPER_MODEL: "${LISTENER_WHISPER_MODEL:-base.en}"
+      LISTENER_ENERGY_THRESHOLD: "${LISTENER_ENERGY_THRESHOLD:-0.012}"
+    depends_on:
+      sdk:
+        condition: service_healthy
+    profiles: ["listener", "all"]
 
   # ---- Voice agent: bidirectional speech (browser/onboard mic ↔ model) -------
   voice:
