@@ -28,6 +28,10 @@
   <img src="docs/media/branding/stack.svg" alt="see · think · drive · remember" width="100%"/>
 </p>
 
+<p align="center">
+  <img src="docs/media/branding/personas.svg" alt="one body · five faces — REPL · voice · thinker · telegram · dashboard" width="100%"/>
+</p>
+
 ---
 
 ```
@@ -619,14 +623,17 @@ gantt
 </tr>
 </table>
 
-### 📅 a day in scout's life — `2026-06-19`
+### 📅 a day in scout's life
 
-| persona | episodes | frames | ~duration | what it was doing |
-|---|--:|--:|--:|---|
-| 🐢 **thinker** | 28 | 10,080 | ~16.8 min | `[thinker] autonomous exploration` |
-| 📱 **telegram** | 1 | 1,309 | ~2.2 min | `@cagataycali: Can you come to bedroom?` |
-| 🧠 **main** | 1 | 373 | ~0.6 min | `perform a 360, then move ahead 5 ft zig-zag` |
-| **total** | **30** | **11,762** | **~19.6 min** | _front+rear video · state · action · audio · reasoning_ |
+| date | persona | episodes | frames | ~duration | what it was doing |
+|---|---|--:|--:|--:|---|
+| **2026-06-21** | 🧠 **REPL** | 1 | 54 | ~0.09 min | `Do a 360` _(spotted 🤖 G1 humanoid as roommate)_ |
+| **2026-06-21** | 📱 **telegram** | 1 | 37 | ~0.06 min | `@cagataycali: Get closer to g1` _(self-reported SDK reset)_ |
+| **2026-06-21** | 🐢 **thinker** | 1 | 140 | ~0.23 min | `[thinker] autonomous exploration` _(escaped kitchen-fridge trap)_ |
+| 2026-06-19 | 🐢 thinker | 28 | 10,080 | ~16.8 min | `[thinker] autonomous exploration` |
+| 2026-06-19 | 📱 telegram | 1 | 1,309 | ~2.2 min | `@cagataycali: Can you come to bedroom?` |
+| 2026-06-19 | 🧠 main | 1 | 373 | ~0.6 min | `perform a 360, then move ahead 5 ft zig-zag` |
+| **total** | | **33** | **11,993** | **~19.9 min** | _front+rear video · state · action · audio · reasoning_ |
 
 _@ 10 FPS · LeRobot v3 · per-agent datasets merge into one timeline via_
 `make merge` _(or_ `python -m tools.merge_datasets`_). The VLA spine
@@ -643,6 +650,64 @@ ds = LeRobotDataset("scout/earth-rover-mini", root="./datasets/scout__earth-rove
 print(ds.num_episodes, ds.num_frames, ds.fps)
 sample = ds[0]   # observation.images.front, observation.state, action, ...
 ```
+
+### 🧠 ECoT in the wild — frames + thoughts (`2026-06-21`)
+
+_Three personas, one rover, one day in the Thor lab. Every frame is paired
+with the actual reasoning event scout wrote to its `events.sqlite` sidecar —
+this is what an Embodied Chain-of-Thought dataset **actually looks like**._
+
+<table>
+<tr>
+<td align="center" width="33%" valign="top">
+<a href="docs/media/ecot-samples/repl-360-frame020.png">
+  <img src="docs/media/ecot-samples/repl-360-frame020.png" alt="REPL · mid-spin during 360" width="100%"/>
+</a>
+<br/><sub><b>🧠 REPL · "Do a 360"</b><br/>
+<code>rover_navigate(4× spin @ 0.8 rad/s, 2.5s)</code></sub>
+
+> _"360° done! 🌀 Great tour of the room — spotted the desk and gaming
+> chair, a cozy grey sofa with a yoga mat, and of course our tall
+> **humanoid robot neighbor** standing right there!"_
+</td>
+
+<td align="center" width="33%" valign="top">
+<a href="docs/media/ecot-samples/telegram-g1-frame010.png">
+  <img src="docs/media/ecot-samples/telegram-g1-frame010.png" alt="Telegram · approaching G1" width="100%"/>
+</a>
+<br/><sub><b>📱 telegram · "Get closer to g1"</b><br/>
+<code>rover_move → ⚠ SDK reset → telegram(report)</code></sub>
+
+> _"⚠️ Lost connection to the rover — trying to get closer to G1 but the
+> SDK link dropped. I'll retry on the next turn."_
+>
+> ↳ self-reports failures · the next scout learns
+</td>
+
+<td align="center" width="33%" valign="top">
+<a href="docs/media/ecot-samples/thinker-explore-frame070.png">
+  <img src="docs/media/ecot-samples/thinker-explore-frame070.png" alt="Thinker · autonomous exploration" width="100%"/>
+</a>
+<br/><sub><b>🐢 thinker · autonomous exploration</b><br/>
+<code>rover_see → memory(spatial) → escape plan</code></sub>
+
+> _"ACTION: escaped kitchen fridge trap via hard reverse + right turn →
+> navigated into entrance hallway → discovered front door + sneakers +
+> second open doorway with clock."_
+</td>
+</tr>
+</table>
+
+| persona | reasoning events | tools called | episode task |
+|---|--:|---|---|
+| 🧠 REPL | **21** | `rover_navigate` | `Do a 360` |
+| 📱 telegram | **116** | `telegram` · `rover_move` · `rover_see` · `room_map` · `rover_navigate` · `rover_lamp` · `rover_screenshot` · `rover_stop` | `Get closer to g1` |
+| 🐢 thinker | **1,270** | `rover_see` · `rover_memory` · `rover_navigate` · `telegram` · `rover_move` · `rover_speak` · `rover_stop` | `[thinker] autonomous exploration` |
+
+_Each `reasoning_events.sqlite` row carries `frame_span_lo/hi` — the
+exact frame range a thought was bound to. Replay any episode with
+`docs/replay.html` and you can scrub through frames **while watching
+scout's inner monologue scroll alongside**._
 
 ### 🔢 schema — superset, LeRobot-safe
 
