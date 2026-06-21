@@ -225,6 +225,62 @@ sudo systemctl enable --now earth-rovers-sdk
 
 ---
 
+## 🌐 expose publicly (Cloudflare Tunnel · `scout.example.com`)
+
+Once scout is running locally (option A/B/C above), you can give it a real
+public hostname over a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+— no port-forward, no public IP, free TLS, works behind any NAT. This is
+what powers `scout.cagatay.my` from a Jetson Thor sitting on a home network.
+
+```bash
+# 1. install cloudflared (linux/arm64 example — see CF docs for your arch)
+sudo curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64 \
+  -o /usr/local/bin/cloudflared && sudo chmod +x /usr/local/bin/cloudflared
+
+# 2. login (opens browser, pick the zone you want, e.g. cagatay.my)
+cloudflared tunnel login
+
+# 3. create a named tunnel
+cloudflared tunnel create scout
+# → writes credentials to ~/.cloudflared/<UUID>.json
+
+# 4. route a DNS record to it (CNAME → <UUID>.cfargotunnel.com, auto)
+cloudflared tunnel route dns scout scout.example.com
+```
+
+Then drop this into `~/.cloudflared/config.yml` (the dashboard listens on
+HTTPS `:8080` with a self-signed cert, so we tell the tunnel to skip TLS
+verify *between cloudflared and localhost only* — public traffic is still
+fully encrypted end-to-end by Cloudflare):
+
+```yaml
+tunnel: <UUID-from-step-3>
+credentials-file: /home/youruser/.cloudflared/<UUID>.json
+
+ingress:
+  - hostname: scout.example.com
+    service: https://localhost:8080
+    originRequest:
+      noTLSVerify: true   # self-signed scout cert; CF still serves real TLS
+  - service: http_status:404
+```
+
+Run it (or install as a service so it survives reboots):
+
+```bash
+cloudflared tunnel run scout                       # foreground test
+sudo cloudflared service install                   # persist as systemd unit
+```
+
+You can now reach scout's dashboard, voice agent, and APIs at
+`https://scout.example.com` from anywhere. Combine with `SCOUT_AUTH_ENABLED=true`
++ passkeys (set `SCOUT_AUTH_RP_ID=scout.example.com` and
+`SCOUT_AUTH_ORIGIN=https://scout.example.com` in `.env`) for a public-internet-safe
+rover cockpit. ☁️🛞
+
+---
+
+
 ## 🧰 the toolbelt
 
 scout's core world is **17 tools** + an optional **🌌 Cosmos** bundle. Vision

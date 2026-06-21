@@ -1,0 +1,42 @@
+# Adds media + yolo to the slim stack (parity with GPU compose, CPU-only).
+services:
+  media:
+    image: scout:slim
+    container_name: scout-slim-media
+    env_file: .env
+    restart: unless-stopped
+    command: ["media"]
+    environment:
+      SCOUT_ENABLE_COSMOS: "0"
+      ROVER_SDK_URL: "http://sdk:8002"
+      MEDIA_HUB_PORT: "8090"
+    ports:
+      - "${MEDIA_HUB_PORT:-8090}:8090"
+    volumes:
+      - ./datasets:/app/datasets
+      - ./.memory:/app/.memory
+      - ./captures:/app/captures
+      - ./screenshots:/app/screenshots
+    depends_on:
+      - sdk
+    profiles: ["media", "yolo", "all"]
+
+  yolo:
+    image: scout:slim
+    container_name: scout-slim-yolo
+    env_file: .env
+    restart: unless-stopped
+    command: ["yolo"]
+    environment:
+      SCOUT_ENABLE_COSMOS: "0"
+      MEDIA_HUB_URL: "http://media:8090"
+      YOLO_MODEL: "${YOLO_MODEL:-yolov8n.pt}"
+      YOLO_CONF: "${YOLO_CONF:-0.35}"
+      YOLO_EVERY_N: "${YOLO_EVERY_N:-2}"
+      DET_BACKEND: "${DET_BACKEND:-yolo}"
+    volumes:
+      - ./datasets:/app/datasets
+      - ./.memory:/app/.memory
+    depends_on:
+      - media
+    profiles: ["yolo", "all"]
