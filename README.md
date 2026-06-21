@@ -15,6 +15,19 @@
 
 </div>
 
+<!-- ✦ animated glassmorphic hero (earth + camo palette) ✦ -->
+<p align="center">
+  <img src="docs/media/branding/hero.svg" alt="scout — sees, thinks, drives, remembers" width="100%"/>
+</p>
+
+<p align="center">
+  <img src="docs/media/branding/divider.svg" alt="" width="80%"/>
+</p>
+
+<p align="center">
+  <img src="docs/media/branding/stack.svg" alt="see · think · drive · remember" width="100%"/>
+</p>
+
 ---
 
 ```
@@ -92,6 +105,45 @@ maneuver, or even generate video.
 **The pattern:** per-turn live state injection, FSM-style safety gating,
 curated tool bundles. The model wakes up every turn already knowing the
 rover's battery, GPS, orientation — and already seeing the road.
+
+---
+
+## 📱 from your pocket — PWA on `scout.example.com`
+
+The dashboard is an iOS-installable **PWA** (Add to Home Screen). Behind a
+Cloudflare Tunnel + WebAuthn passkey, you can drive scout from anywhere —
+joystick, voice, agent chat — without ever opening a laptop.
+
+<table>
+<tr>
+  <td align="center" width="33%">
+    <a href="docs/media/pwa-videos/joystick-360.mov">
+      <img src="docs/media/pwa-videos/joystick-360.gif" alt="iOS PWA — joystick + 360° agent" width="240"/>
+    </a>
+    <br/><sub><b>🕹️ joystick · live drive</b><br/>unlock → joystick → "do a 360"</sub>
+  </td>
+  <td align="center" width="33%">
+    <a href="docs/media/pwa-videos/agent-360.mov">
+      <img src="docs/media/pwa-videos/agent-360.gif" alt="agent autonomous 360° execution" width="240"/>
+    </a>
+    <br/><sub><b>🤖 ask the agent</b><br/>"perform a 360" → tool calls live-streamed</sub>
+  </td>
+  <td align="center" width="33%">
+    <a href="docs/media/pwa-videos/config-lock.mov">
+      <img src="docs/media/pwa-videos/config-lock.gif" alt="config drawer + lock" width="240"/>
+    </a>
+    <br/><sub><b>⚙️ config · lock</b><br/>edit env / model / voice → save → lock</sub>
+  </td>
+</tr>
+</table>
+
+> _Click any tile to view the full-quality `.mov` recording (no h264 transcode
+> on this Jetson Thor — animated previews are GIFs)._
+
+The whole loop — passkey unlock · WS chat · live camera · joystick streaming
+`/control` · ⚙️ live config — runs from `docs/` as a static PWA pointed at a
+running `dashboard_server.py`. Pair with [Cloudflare Tunnel](#-expose-publicly-cloudflare-tunnel--scoutexamplecom)
++ `SCOUT_AUTH_ENABLED=true` and your rover is a one-tap home-screen app.
 
 ---
 
@@ -381,6 +433,69 @@ system prompt advertises these only when they're actually loaded.
 └─────────────┘           │ /v2/front /speak │              └────────────┘
 ```
 
+```mermaid
+%%{init: {'theme':'base','themeVariables':{
+  'background':'#0d130a',
+  'primaryColor':'#1f2a1a',
+  'primaryTextColor':'#f3f1de',
+  'primaryBorderColor':'#ffce6b',
+  'lineColor':'#a8d99a',
+  'tertiaryColor':'#3d4a2a',
+  'fontFamily':'ui-sans-serif, system-ui, sans-serif'
+}}}%%
+flowchart LR
+    subgraph CLIENT["🌐 client surfaces"]
+        B[📱 iOS PWA<br/>scout.example.com]
+        R[🧠 REPL<br/>agent.py]
+        V[🎙 voice<br/>voice_agent.py]
+        T[📨 telegram<br/>telegram_listener.py]
+        L[👂 listener<br/>listener_loop.py]
+        TH[🐢 thinker<br/>thinker_loop.py]
+    end
+
+    subgraph EDGE["🛡 edge · cloudflare"]
+        CF[☁️ cloudflare tunnel<br/>scout.example.com]
+        PK[🔐 passkey<br/>WebAuthn]
+    end
+
+    subgraph CORE["🏠 jetson · scout core"]
+        DASH[🖥 dashboard_server.py<br/>FastAPI · WS · HTTPS :8080]
+        AG[🧠 strands agent<br/>per-turn live state]
+        TB[🧰 ROVER_ALL_TOOLS<br/>17 tools + 🌌 cosmos]
+        REC[📦 LeRobot v3 recorder<br/>ECoT sidecar]
+        MEM[🧠 .memory<br/>SQLite]
+        SDK[🛞 earth-rovers-sdk<br/>headless chrome :8002<br/>AUTO_JOIN agora]
+    end
+
+    subgraph CLOUD["🌍 world"]
+        ROV[(🛞 Earth Rover<br/>Mini+ on the sidewalk)]
+        HF[🤗 huggingface<br/>scout-earthrover-ecot]
+    end
+
+    B -. WS · HTTPS .-> CF
+    CF -. noTLSVerify .-> DASH
+    PK --> CF
+    R --> AG
+    V --> AG
+    T --> AG
+    L --> AG
+    TH --> AG
+    DASH --> AG
+    AG <--> TB
+    TB <--> SDK
+    AG --> REC
+    REC --> HF
+    AG <--> MEM
+    SDK <==> ROV
+
+    classDef glass fill:#1f2a1a,stroke:#ffce6b,color:#f3f1de;
+    classDef earth fill:#3d4a2a,stroke:#a8d99a,color:#f3f1de;
+    classDef sun fill:#2a3a24,stroke:#ffce6b,color:#ffce6b;
+    class DASH,AG,TB,REC,MEM,SDK glass;
+    class B,R,V,T,L,TH earth;
+    class CF,PK,ROV,HF sun;
+```
+
 - **Per-turn state injection** — `agent.py` reads `/data` before every turn and
   rebuilds the system prompt with live battery/GPS/orientation. No defensive
   tool calls — scout always wakes up oriented.
@@ -459,6 +574,50 @@ one daily corpus, and every reasoning trace (system prompt → tool calls →
 results) is bound to the video spine as an **Embodied Chain-of-Thought (ECoT)**
 sidecar, then exported to 🤗
 **[huggingface.co/datasets/cagataydev/scout-earthrover-ecot](https://huggingface.co/datasets/cagataydev/scout-earthrover-ecot)**.
+
+<p align="center">
+  <img src="docs/media/branding/ecot.svg" alt="ECoT data flow — sensors + personas + reasoning → LeRobot v3 → HuggingFace" width="100%"/>
+</p>
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**👁️ what scout actually saw** _(live captures, 10 FPS spine)_
+
+<img src="docs/media/dataset/frame-grid.gif" alt="rolling sample of scout's front camera frames" width="100%"/>
+
+</td>
+<td width="50%" valign="top">
+
+**🧬 persona timeline** _(one rover · many minds)_
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{
+  'background':'#0d130a',
+  'primaryColor':'#1f2a1a',
+  'primaryTextColor':'#f3f1de',
+  'primaryBorderColor':'#ffce6b',
+  'lineColor':'#a8d99a',
+  'tertiaryColor':'#3d4a2a'
+}}}%%
+gantt
+    title 2026-06-19 · one day on scout
+    dateFormat HH:mm
+    axisFormat %H:%M
+    section 🐢 thinker
+    28 episodes · ~16.8 min :active, 09:00, 200m
+    section 📨 telegram
+    "come to bedroom" :crit, 13:00, 4m
+    section 🧠 main
+    "360 + zig-zag"   :done, 14:30, 2m
+    section 📦 merged
+    daily corpus      :milestone, 18:00, 0m
+```
+
+</td>
+</tr>
+</table>
 
 ### 📅 a day in scout's life — `2026-06-19`
 

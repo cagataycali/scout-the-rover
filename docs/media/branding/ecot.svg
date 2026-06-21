@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420"
+     role="img" aria-label="ECoT — embodied chain of thought dataset">
+  <title>ECoT data flow</title>
+  <desc>Sensors and personas funnel into a unified LeRobot v3 dataset; per-turn reasoning is bound to frames as an Embodied Chain-of-Thought sidecar.</desc>
+
+  <defs>
+    <linearGradient id="ecotBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a221a"/>
+      <stop offset="100%" stop-color="#0b110a"/>
+    </linearGradient>
+    <linearGradient id="lane" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#e8e3c7" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#3d4a2a" stop-opacity="0.06"/>
+    </linearGradient>
+    <linearGradient id="flow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"  stop-color="#ffce6b" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#ffce6b" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#ffce6b" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="420" fill="url(#ecotBg)"/>
+
+  <!-- top label -->
+  <g font-family="ui-sans-serif, system-ui, sans-serif" fill="#f3f1de">
+    <text x="40" y="40" font-size="20" font-weight="800">ECoT · embodied chain of thought</text>
+    <text x="40" y="62" font-size="12" fill="#bdb88c" opacity="0.8">
+      every reasoning trace (system prompt → tool calls → results) bound to the video spine
+    </text>
+  </g>
+
+  <!-- 3 source lanes -->
+  <g font-family="ui-sans-serif, system-ui, sans-serif" font-size="13" fill="#e8e3c7">
+    <!-- sensors -->
+    <g transform="translate(40,100)">
+      <rect width="260" height="80" rx="14" fill="url(#lane)" stroke="#e8e3c7" stroke-opacity="0.18"/>
+      <text x="20" y="28" font-weight="700" fill="#ffce6b">📡 sensors</text>
+      <text x="20" y="50" font-size="11" fill="#bdb88c">front · rear · imu · gps · rpm · audio</text>
+      <text x="20" y="68" font-size="11" fill="#a8d99a">10 FPS · 27-D state</text>
+    </g>
+    <!-- personas -->
+    <g transform="translate(40,200)">
+      <rect width="260" height="80" rx="14" fill="url(#lane)" stroke="#e8e3c7" stroke-opacity="0.18"/>
+      <text x="20" y="28" font-weight="700" fill="#ffce6b">🧠 personas</text>
+      <text x="20" y="50" font-size="11" fill="#bdb88c">main · telegram · thinker · voice · listener</text>
+      <text x="20" y="68" font-size="11" fill="#a8d99a">all share one toolbelt &amp; one body</text>
+    </g>
+    <!-- reasoning -->
+    <g transform="translate(40,300)">
+      <rect width="260" height="80" rx="14" fill="url(#lane)" stroke="#e8e3c7" stroke-opacity="0.18"/>
+      <text x="20" y="28" font-weight="700" fill="#ffce6b">💭 reasoning</text>
+      <text x="20" y="50" font-size="11" fill="#bdb88c">prompt · tool calls · results</text>
+      <text x="20" y="68" font-size="11" fill="#a8d99a">timestamped to each frame</text>
+    </g>
+  </g>
+
+  <!-- flowing arrows -->
+  <g>
+    <path d="M 300 140 Q 500 140 700 210" fill="none" stroke="url(#flow)" stroke-width="2"/>
+    <path d="M 300 240 Q 500 240 700 230" fill="none" stroke="url(#flow)" stroke-width="2"/>
+    <path d="M 300 340 Q 500 340 700 250" fill="none" stroke="url(#flow)" stroke-width="2"/>
+    <!-- animated dot pulse along arrows -->
+    <circle r="3.5" fill="#ffce6b">
+      <animateMotion dur="3s" repeatCount="indefinite"
+                     path="M 300 140 Q 500 140 700 210"/>
+    </circle>
+    <circle r="3.5" fill="#ffce6b">
+      <animateMotion dur="3s" begin="1s" repeatCount="indefinite"
+                     path="M 300 240 Q 500 240 700 230"/>
+    </circle>
+    <circle r="3.5" fill="#ffce6b">
+      <animateMotion dur="3s" begin="2s" repeatCount="indefinite"
+                     path="M 300 340 Q 500 340 700 250"/>
+    </circle>
+  </g>
+
+  <!-- merge node -->
+  <g transform="translate(700,140)" font-family="ui-sans-serif, system-ui, sans-serif">
+    <rect width="220" height="160" rx="20"
+          fill="#e8e3c7" fill-opacity="0.10"
+          stroke="#ffce6b" stroke-opacity="0.55" stroke-width="1.6"/>
+    <text x="20" y="34" font-size="14" font-weight="700" fill="#ffce6b">📦 LeRobot v3</text>
+    <text x="20" y="58" font-size="11" fill="#bdb88c">parquet rows · MP4 chunks</text>
+    <text x="20" y="74" font-size="11" fill="#bdb88c">WAV audio · ECoT JSONL</text>
+    <text x="20" y="100" font-size="12" font-weight="700" fill="#a8d99a">✓ VLA spine</text>
+    <text x="20" y="120" font-size="12" font-weight="700" fill="#a8d99a">✓ ECoT view</text>
+    <text x="20" y="140" font-size="11" fill="#e8e3c7" opacity="0.8">same canonical store</text>
+  </g>
+
+  <!-- final arrow to HF -->
+  <path d="M 920 220 L 1040 220" fill="none" stroke="#ffce6b" stroke-width="2" stroke-dasharray="6 6">
+    <animate attributeName="stroke-dashoffset" from="0" to="-24" dur="1.2s" repeatCount="indefinite"/>
+  </path>
+
+  <!-- HF target -->
+  <g transform="translate(1040,170)">
+    <rect width="130" height="100" rx="16"
+          fill="#e8e3c7" fill-opacity="0.10"
+          stroke="#ffce6b" stroke-opacity="0.6"/>
+    <text x="65" y="36" font-size="32" text-anchor="middle">🤗</text>
+    <text x="65" y="60" font-size="11" font-weight="700" text-anchor="middle" fill="#ffce6b">HuggingFace</text>
+    <text x="65" y="80" font-size="9" text-anchor="middle" fill="#bdb88c">scout-earthrover-ecot</text>
+  </g>
+</svg>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 24" role="img" aria-label="camouflage divider">
+  <defs>
+    <linearGradient id="d" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"  stop-color="#3d4a2a" stop-opacity="0"/>
+      <stop offset="20%" stop-color="#3d4a2a" stop-opacity="0.7"/>
+      <stop offset="50%" stop-color="#ffce6b" stop-opacity="0.85"/>
+      <stop offset="80%" stop-color="#3d4a2a" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#3d4a2a" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="11" width="1200" height="2" fill="url(#d)"/>
+  <circle cx="600" cy="12" r="4" fill="#ffce6b" opacity="0.9">
+    <animate attributeName="r" values="4;6;4" dur="2.4s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.9;0.4;0.9" dur="2.4s" repeatCount="indefinite"/>
+  </circle>
+</svg>
