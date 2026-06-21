@@ -77,12 +77,20 @@ RUN python3 -m pip install --upgrade pip \
     && pip install -r /app/sdk-requirements.txt \
     # voice extras optional — don't fail the build if a wheel is unavailable
     && (pip install -r /app/requirements-voice.txt || echo "voice extras skipped") \
+    # YOLO object detection (yolo service). Pulls opencv-python — re-pinned to
+    # headless below so the cv2 ImportError clash with numpy 2.x can't happen.
+    && pip install --no-cache-dir ultralytics \
     # one consistent headless opencv for numpy 2.x (avoid cv2 ImportError clash)
     && (pip uninstall -y opencv-python opencv-python-headless 2>/dev/null || true) \
     && pip install --no-cache-dir --force-reinstall "opencv-python-headless==4.11.0.86" "numpy>=2.0"
 
 # --- App source --------------------------------------------------------------
 COPY . /app/
+
+# Pre-fetch YOLO weights so the `yolo` service loads instantly (offline-friendly).
+ENV YOLO_CONFIG_DIR=/tmp/Ultralytics
+RUN cd /app && python3 -c "from ultralytics import YOLO; YOLO('yolov8n.pt')" \
+    && ls -la /app/yolov8n.pt
 
 COPY docker/entrypoint.sh /usr/local/bin/scout-entrypoint
 RUN chmod +x /usr/local/bin/scout-entrypoint
