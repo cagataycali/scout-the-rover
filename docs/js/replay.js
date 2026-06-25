@@ -98,6 +98,7 @@ async function selectEpisode(idx) {
   EP = EPISODES.find(e => e.episode_index === idx);
   renderEpList();
   EPDATA = await api(`/api/replay/${DS}/episode/${idx}`);
+  renderEpTitle();
 
   // decide mode: live image episodes have mode==="images"
   MODE = (EP && EP.mode === "images") ? "images" : "video";
@@ -110,6 +111,7 @@ async function selectEpisode(idx) {
     $("tDur").textContent = (EP.video_to - EP.video_from).toFixed(2) + "s";
     seekToEpisodeTime(0);
   }
+  renderEvFilter();
   renderEvents();
   drawGraph();
 }
@@ -302,19 +304,75 @@ function renderTelemetryByTime(t) {
   _telemRowAt(Math.max(0, Math.min(fidx.length - 1, i)));
 }
 
+// ── episode title ──
+function renderEpTitle() {
+  const el = $("eptitle"); if (!el || !EP) return;
+  const task = (EP.tasks || []).join(" / ") || "untasked episode";
+  const live = EP.live ? '<span class="badge b-live">🔴 live</span>' : "";
+  const nf = EP.length != null ? `${EP.length} frames` : "";
+  const dur = (EP.video_to - EP.video_from).toFixed(1);
+  el.innerHTML = `<div class="ept-task">${escapeHtml(task)}</div>` +
+    `<div class="ept-meta">ep ${EP.episode_index} · ${nf} · ${dur}s ${live}</div>`;
+}
+
+// ── reasoning type filter ──
+let EV_FILTER = new Set();   // empty = show all
+const EV_TYPES = ["user_input","reasoning","tool_use","tool_result","assistant_end"];
+function renderEvFilter() {
+  const el = $("evfilter"); if (!el) return;
+  // tally types + agents present in this episode
+  const present = new Set((EPDATA.reasoning||[]).map(r=>r.type));
+  const agents = Array.from(new Set((EPDATA.reasoning||[]).map(r=>r.agent_id).filter(Boolean)));
+  el.innerHTML = "";
+  EV_TYPES.filter(t=>present.has(t)).forEach(t => {
+    const b = document.createElement("button");
+    b.className = "evchip b-" + t + (EV_FILTER.size===0||EV_FILTER.has(t) ? " on" : "");
+    b.textContent = t.replace("_"," ");
+    b.onclick = () => {
+      if (EV_FILTER.has(t)) EV_FILTER.delete(t);
+      else {
+        if (EV_FILTER.size===0) EV_TYPES.forEach(x=>{if(present.has(x))EV_FILTER.add(x);});
+        EV_FILTER.delete(t);
+      }
+      if (EV_FILTER.size===0 || EV_FILTER.size===[...present].length) EV_FILTER.clear();
+      renderEvFilter(); renderEvents(); updateActiveByTime();
+    };
+    el.appendChild(b);
+  });
+  if (agents.length > 1) {
+    const lg = document.createElement("span");
+    lg.className = "evagents";
+    lg.innerHTML = "agents: " + agents.map(a=>`<span class="agid">${escapeHtml(a)}</span>`).join("");
+    el.appendChild(lg);
+  }
+}
+function evVisible(r){ return EV_FILTER.size===0 || EV_FILTER.has(r.type); }
+function updateActiveByTime(){ highlightEventsByTime(curEpTime()); }
+
+// pretty-print tool_input JSON compactly
+function fmtToolInput(raw) {
+  if (!raw) return "";
+  try {
+    const o = JSON.parse(raw);
+    return Object.entries(o).map(([k,v]) =>
+      `${k}=${typeof v==="object"?JSON.stringify(v):v}`).join(" ").slice(0,80);
+  } catch { return String(raw).slice(0,80); }
+}
+
 // ── events ──
 function renderEvents() {
   const el = $("events"); el.innerHTML = "";
   const evs = EPDATA.reasoning || [];
   if (!evs.length) { el.innerHTML = '<div class="tnote">no reasoning events</div>'; return; }
   evs.forEach((r, i) => {
+    if (!evVisible(r)) return;
     const div = document.createElement("div");
     div.className = `ev ev-${r.type}`;
     div.dataset.t = (r.video_t != null ? r.video_t : 0);
     div.dataset.i = i;
     const t = r.video_t != null ? r.video_t.toFixed(1) + "s" : "–";
     let body = r.text || "";
-    if (r.type === "tool_use") body = `${r.tool_name}(${(r.tool_input||"").slice(0,60)})`;
+    if (r.type === "tool_use") body = `${r.tool_name}(${fmtToolInput(r.tool_input)})`;
     const who = r.agent_id && r.agent_id !== "main" ? `<span class="agid">${r.agent_id}</span>` : "";
     div.innerHTML = `<span class="et">${t}</span>` +
       `<span class="badge b-${r.type}">${(r.type||"").replace("_"," ")}</span>` + who +
@@ -471,6 +529,24 @@ async function memSearch() {
 }
 $("memGo").onclick = memSearch;
 $("memQ").addEventListener("keydown", (e) => { if (e.key === "Enter") memSearch(); });
+
+// ── ⌨️ keyboard shortcuts: space=play/pause, ←/→ step, j/k jump 5s, home/end ──
+function _stepTime(dt) { seekToEpisodeTime(curEpTime() + dt); }
+document.addEventListener("keydown", (e) => {
+  if (!EP) return;
+  if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
+  const step = isImageMode() ? (1 / (IMG_EFF_FPS || 1)) : (1 / FPS);
+  switch (e.key) {
+    case " ": e.preventDefault(); $("btnPlay").click(); break;
+    case "ArrowRight": e.preventDefault(); _stepTime(step); break;
+    case "ArrowLeft":  e.preventDefault(); _stepTime(-step); break;
+    case "k": _stepTime(5); break;
+    case "j": _stepTime(-5); break;
+    case "Home": e.preventDefault(); seekToEpisodeTime(0); break;
+    case "End":  e.preventDefault(); seekToEpisodeTime(epDur()); break;
+    case "v": $("btnView").click(); break;
+  }
+});
 
 window.scoutBoot = function() { if (window._rbooted) return; window._rbooted = true; init(); };
 if (!document.getElementById('authGate')) window.scoutBoot();
