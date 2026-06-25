@@ -180,6 +180,7 @@ def _episodes_meta(ds_id: str) -> List[Dict[str, Any]]:
             "image_frames": nframes,
             "image_views": [v for v, fr in (("front", front), ("rear", rear)) if fr],
             "eff_fps": eff_fps,
+            "has_audio": _audio_path(ds_id, ei) is not None,
         })
     # Episodes with PNGs but NO anchor row (recorder died before anchoring) —
     # still surface them so nothing recorded is invisible.
@@ -204,6 +205,7 @@ def _episodes_meta(ds_id: str) -> List[Dict[str, Any]]:
             "image_frames": nframes,
             "image_views": [v for v, fr in (("front", front), ("rear", rear)) if fr],
             "eff_fps": eff_fps,
+            "has_audio": _audio_path(ds_id, ei) is not None,
         })
     rows.sort(key=lambda r: r["episode_index"])
     return rows
@@ -292,6 +294,21 @@ def _episode_duration_from_reasoning(ds_id: str, episode_index: int) -> float:
     if tmin is not None and tmax is not None:
         return float(tmax - tmin)
     return 0.0
+
+
+def _audio_path(ds_id: str, episode_index: int) -> Optional[Path]:
+    """Per-episode WAV sidecar written by the recorder (audio/episode_NNNNNN.wav)."""
+    d = _dataset_dir(ds_id)
+    cands = [
+        d / "audio" / f"episode_{episode_index:06d}.wav",
+        d / "audio" / f"episode-{episode_index:06d}.wav",
+    ]
+    for c in cands:
+        if c.exists():
+            return c
+    # last resort: glob
+    g = sorted(glob.glob(str(d / "audio" / f"*{episode_index:06d}.wav")))
+    return Path(g[0]) if g else None
 
 
 # ── reasoning events for an episode ──────────────────────────────────────────
@@ -517,3 +534,11 @@ def mount(app: FastAPI) -> None:
                 raise HTTPException(404, f"frame {frame} not found")
             p = cands[0]
         return FileResponse(str(p), media_type="image/png")
+
+    @app.get("/api/replay/{ds_id}/audio/{episode_index}")
+    async def replay_audio(ds_id: str, episode_index: int):
+        """Serve the per-episode WAV sidecar (mic capture) for timeline sync."""
+        path = _audio_path(ds_id, episode_index)
+        if not path:
+            raise HTTPException(404, f"no audio for ep {episode_index} in {ds_id}")
+        return FileResponse(str(path), media_type="audio/wav")

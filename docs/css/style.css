@@ -632,3 +632,7 @@ img.rvideo { object-fit: contain; }
           border: 1px solid rgba(255,255,255,.14); opacity: .5; transition: opacity .15s; }
 .evchip.on { opacity: 1; color: var(--txt); border-color: rgba(255,255,255,.3); }
 .evagents { font-size: 10px; color: var(--txt-dim); margin-left: auto; }
+
+/* 🎞️ replay iter3 — audio toggle */
+#btnAudio.on { background: rgba(118,185,0,.18); color: #9be319; border-color: rgba(118,185,0,.4); }
+#aud { display: none; }

@@ -27,6 +27,9 @@ let _imgCache = new Map();   // frame# → preloaded Image
 
 const vid = $("vid");
 const vimg = $("vimg");
+const aud = $("aud");
+let AUDIO_ON = false;     // user toggle (persisted)
+let HAS_AUDIO = false;    // current episode has a WAV sidecar
 
 async function init() {
   const datasets = await api("/api/replay/datasets");
@@ -99,6 +102,7 @@ async function selectEpisode(idx) {
   renderEpList();
   EPDATA = await api(`/api/replay/${DS}/episode/${idx}`);
   renderEpTitle();
+  loadAudio(idx);
 
   // decide mode: live image episodes have mode==="images"
   MODE = (EP && EP.mode === "images") ? "images" : "video";
@@ -185,6 +189,7 @@ function preloadAround(i) {
 function startImagePlay() {
   if (_imgTimer) return;
   playing = true; $("btnPlay").textContent = "❚❚ pause";
+  syncAudioTo(IMG_T); audioPlay();
   const stepMs = 1000 / ((IMG_EFF_FPS || 4) * PLAYRATE);
   let last = performance.now();
   const tick = (now) => {
@@ -201,6 +206,7 @@ function stopImagePlay() {
   playing = false;
   if (_imgTimer) { cancelAnimationFrame(_imgTimer); _imgTimer = null; }
   const b = $("btnPlay"); if (b) b.textContent = "▶︎ play";
+  audioPause();
 }
 
 function updateImageUI() {
@@ -210,6 +216,7 @@ function updateImageUI() {
   const fn = timeToImageFrame(t);
   $("frameLbl").textContent = `frame ${fn != null ? fn : 0}`;
   showImageAtTime(t);
+  if (!playing) syncAudioTo(t);
   highlightEventsByTime(t);
   renderTelemetryByTime(t);
   drawPlayhead(t / dur);
@@ -242,6 +249,7 @@ function updateUI() {
   $("scrub").value = dur > 0 ? Math.round((t / dur) * 1000) : 0;
   const frame = Math.round(t * FPS);
   $("frameLbl").textContent = `frame ${frame}`;
+  if (!playing) syncAudioTo(t);
   highlightEventsByTime(t);
   renderTelemetry(frame);
   drawPlayhead(t / (dur || 1));
@@ -468,10 +476,11 @@ $("btnPlay").onclick = () => {
     else { if (IMG_T >= IMG_DUR) IMG_T = 0; startImagePlay(); }
     return;
   }
-  if (playing) { vid.pause(); playing = false; $("btnPlay").textContent = "▶︎ play"; }
+  if (playing) { vid.pause(); playing = false; $("btnPlay").textContent = "▶︎ play"; audioPause(); }
   else {
     if (vid.currentTime < EP.video_from || vid.currentTime >= EP.video_to) vid.currentTime = EP.video_from;
     vid.playbackRate = PLAYRATE; vid.play(); playing = true; $("btnPlay").textContent = "❚❚ pause";
+    syncAudioTo(curEpTime()); audioPlay();
   }
 };
 
@@ -492,7 +501,18 @@ $("btnSpeed").onclick = () => {
   PLAYRATE = PLAYRATE === 1 ? 2 : PLAYRATE === 2 ? 0.5 : 1;
   $("btnSpeed").textContent = PLAYRATE + "×";
   if (!isImageMode()) vid.playbackRate = PLAYRATE;
+  if (HAS_AUDIO && aud) aud.playbackRate = PLAYRATE;
 };
+
+if ($("btnAudio")) $("btnAudio").onclick = () => {
+  AUDIO_ON = !AUDIO_ON;
+  localStorage.setItem("scout_replay_audio", AUDIO_ON ? "1" : "0");
+  if (aud) aud.muted = !AUDIO_ON;
+  updateAudioBtn();
+  if (AUDIO_ON && playing) { syncAudioTo(curEpTime()); audioPlay(); }
+  else if (!AUDIO_ON) audioPause();
+};
+AUDIO_ON = localStorage.getItem("scout_replay_audio") === "1";
 
 // ── 🔎 memory search (CLIP/text/object/audio) → seek scrubber ──
 async function memSearch() {
@@ -529,6 +549,38 @@ async function memSearch() {
 }
 $("memGo").onclick = memSearch;
 $("memQ").addEventListener("keydown", (e) => { if (e.key === "Enter") memSearch(); });
+
+// ── 🔊 audio sidecar (full-episode WAV @ episode-relative seconds) ──
+function loadAudio(idx) {
+  HAS_AUDIO = !!(EP && EP.has_audio);
+  const btn = $("btnAudio");
+  if (!HAS_AUDIO) {
+    if (aud) { aud.pause(); aud.removeAttribute("src"); }
+    if (btn) { btn.style.display = "none"; }
+    return;
+  }
+  if (btn) btn.style.display = "";
+  aud.src = _withTok(`/api/replay/${DS}/audio/${idx}`);
+  aud.load();
+  aud.muted = !AUDIO_ON;
+  updateAudioBtn();
+  // keep audio time pinned to the scrubber position
+  aud.currentTime = 0;
+}
+function updateAudioBtn() {
+  const btn = $("btnAudio"); if (!btn) return;
+  btn.textContent = AUDIO_ON ? "🔊 audio" : "🔇 audio";
+  btn.classList.toggle("on", AUDIO_ON);
+}
+function syncAudioTo(t) {
+  if (!HAS_AUDIO || !aud) return;
+  // only correct drift > 0.25s to avoid choppiness
+  if (Math.abs((aud.currentTime || 0) - t) > 0.25) {
+    try { aud.currentTime = Math.max(0, t); } catch (_) {}
+  }
+}
+function audioPlay() { if (HAS_AUDIO && AUDIO_ON && aud) aud.play().catch(()=>{}); }
+function audioPause() { if (HAS_AUDIO && aud) aud.pause(); }
 
 // ── ⌨️ keyboard shortcuts: space=play/pause, ←/→ step, j/k jump 5s, home/end ──
 function _stepTime(dt) { seekToEpisodeTime(curEpTime() + dt); }
