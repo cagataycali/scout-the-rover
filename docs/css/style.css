@@ -636,3 +636,12 @@ img.rvideo { object-fit: contain; }
 /* 🎞️ replay iter3 — audio toggle */
 #btnAudio.on { background: rgba(118,185,0,.18); color: #9be319; border-color: rgba(118,185,0,.4); }
 #aud { display: none; }
+
+/* 🎞️ replay iter5 — episode thumbnails + refresh */
+.epitem { display: flex; gap: 9px; align-items: center; }
+.epthumb { width: 56px; height: 42px; object-fit: cover; border-radius: 7px;
+           flex: 0 0 auto; background: #000; border: 1px solid rgba(255,255,255,.1); }
+.epbody { flex: 1; min-width: 0; }
+.rrefresh { padding: 4px 9px; font-size: 14px; }
+.rrefresh.spin { animation: rspin .5s linear; }
+@keyframes rspin { from { transform: rotate(0); } to { transform: rotate(360deg); } }

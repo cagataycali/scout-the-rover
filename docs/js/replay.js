@@ -88,8 +88,16 @@ function renderEpList() {
     const dur = (e.video_to - e.video_from).toFixed(1);
     const live = e.live ? ` <span class="eplive">🔴</span>` : "";
     const nf = e.length != null ? `${e.length}f` : "–";
-    div.innerHTML = `<div><b>ep ${e.episode_index}</b> · ${nf} · ${dur}s${live}</div>
-                     <div class="et">${(e.tasks || []).join(" / ") || "<i>untasked</i>"}</div>`;
+    // thumbnail: first PNG frame (image mode) — cheap, cached by browser
+    let thumb = "";
+    if (e.mode === "images" && e.image_views && e.image_views.length && e.from_index != null) {
+      const v = e.image_views.includes("front") ? "front" : e.image_views[0];
+      const url = _withTok(`/api/replay/${DS}/frame/${v}/${e.episode_index}/${e.from_index}`);
+      thumb = `<img class="epthumb" loading="lazy" src="${url}" alt="" />`;
+    }
+    div.innerHTML = `${thumb}<div class="epbody">` +
+                    `<div><b>ep ${e.episode_index}</b> · ${nf} · ${dur}s${live}</div>` +
+                    `<div class="et">${(e.tasks || []).join(" / ") || "<i>untasked</i>"}</div></div>`;
     div.onclick = () => selectEpisode(e.episode_index);
     el.appendChild(div);
   });
@@ -620,6 +628,21 @@ document.addEventListener("keydown", (e) => {
     case "v": $("btnView").click(); break;
   }
 });
+
+if ($("btnRefresh")) $("btnRefresh").onclick = async () => {
+  if (!DS) return;
+  const keep = EP ? EP.episode_index : null;
+  const btn = $("btnRefresh"); btn.classList.add("spin");
+  try {
+    const r = await api(`/api/replay/${DS}/episodes`);
+    FPS = r.fps || 4; EPISODES = r.episodes || [];
+    $("dsInfo").textContent = `${FPS} fps · ${EPISODES.length} episode${EPISODES.length === 1 ? "" : "s"}`;
+    renderEpList();
+    const sel = (keep != null && EPISODES.some(e => e.episode_index === keep)) ? keep
+              : (EPISODES.length ? EPISODES[0].episode_index : null);
+    if (sel != null) selectEpisode(sel);
+  } finally { setTimeout(() => btn.classList.remove("spin"), 400); }
+};
 
 window.scoutBoot = function() { if (window._rbooted) return; window._rbooted = true; init(); };
 if (!document.getElementById('authGate')) window.scoutBoot();
