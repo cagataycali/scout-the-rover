@@ -452,11 +452,32 @@ function drawGraph() {
     const frac = (e.clientX - rect.left) / rect.width;
     seekToEpisodeTime(frac * epDur());
   };
+  // cache the rendered base so the playhead can be composited cheaply
+  try { _graphBase = ctx.getImageData(0, 0, W, H); } catch (_) { _graphBase = null; }
+  _graphCtx = ctx; _graphW = W; _graphH = H;
   drawPlayhead(0);
 }
 
 let _playheadFrac = 0;
-function drawPlayhead(frac) { _playheadFrac = frac; }
+let _graphBase = null, _graphCtx = null, _graphW = 0, _graphH = 0;
+function drawPlayhead(frac) {
+  _playheadFrac = Math.max(0, Math.min(1, frac || 0));
+  if (!_graphCtx) return;
+  // restore base graph then draw the playhead line on top
+  if (_graphBase) _graphCtx.putImageData(_graphBase, 0, 0);
+  const x = _playheadFrac * _graphW;
+  _graphCtx.strokeStyle = "rgba(255,255,255,.85)";
+  _graphCtx.lineWidth = 1.5 * devicePixelRatio;
+  _graphCtx.beginPath();
+  _graphCtx.moveTo(x, 0);
+  _graphCtx.lineTo(x, _graphH);
+  _graphCtx.stroke();
+  // little knob at top
+  _graphCtx.fillStyle = "#fff";
+  _graphCtx.beginPath();
+  _graphCtx.arc(x, 3 * devicePixelRatio, 3 * devicePixelRatio, 0, Math.PI * 2);
+  _graphCtx.fill();
+}
 function colorFor(t){return {reasoning:"#7cf",tool_use:"#fc6",tool_result:"#9c6",user_input:"#c9f",assistant_end:"#aaa"}[t]||"#888";}
 function escapeHtml(s){return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
 
