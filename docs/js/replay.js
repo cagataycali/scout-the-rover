@@ -48,6 +48,14 @@ async function init() {
   });
   sel.onchange = () => loadDataset(sel.value);
   if (datasets && datasets.length) loadDataset(datasets[0].id);
+  else showEmptyState("no datasets found", "Drive scout (or record an episode) and they'll appear here.");
+}
+
+function showEmptyState(title, sub) {
+  const ep = $("eplist"); if (ep) ep.innerHTML = `<div class="rempty"><b>${escapeHtml(title)}</b><span>${escapeHtml(sub||"")}</span></div>`;
+  const evt = $("eptitle"); if (evt) evt.innerHTML = "";
+  const ev = $("events"); if (ev) ev.innerHTML = "";
+  const t = $("tDur"); if (t) t.textContent = "0.00s";
 }
 
 async function loadDataset(id) {
@@ -57,6 +65,12 @@ async function loadDataset(id) {
   $("dsInfo").textContent = `${FPS} fps · ${EPISODES.length} episode${EPISODES.length === 1 ? "" : "s"}`;
   renderEpList();
   if (EPISODES.length) selectEpisode(EPISODES[0].episode_index);
+  else {
+    EP = null; EPDATA = null;
+    showEmptyState("no episodes in this dataset", "This dataset has no recorded frames yet.");
+    if ($("vmode")) $("vmode").textContent = "";
+    vimg.removeAttribute("src"); vimg.style.display = "none"; vid.style.display = "block";
+  }
 }
 
 // ── mode helpers ─────────────────────────────────────────────────────────

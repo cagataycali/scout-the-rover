@@ -645,3 +645,9 @@ img.rvideo { object-fit: contain; }
 .rrefresh { padding: 4px 9px; font-size: 14px; }
 .rrefresh.spin { animation: rspin .5s linear; }
 @keyframes rspin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+
+/* 🎞️ replay iter6 — empty state */
+.rempty { display: flex; flex-direction: column; gap: 5px; padding: 22px 14px; text-align: center;
+          color: var(--txt-dim); }
+.rempty b { color: var(--txt); font-size: 14px; }
+.rempty span { font-size: 12px; opacity: .8; }
