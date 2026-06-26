@@ -123,6 +123,7 @@ async function selectEpisode(idx) {
   EP = EPISODES.find(e => e.episode_index === idx);
   renderEpList();
   EPDATA = await api(`/api/replay/${DS}/episode/${idx}`);
+  EV_FILTER.clear(); AGENT_FILTER.clear();
   renderEpTitle();
   loadAudio(idx);
 
@@ -347,6 +348,7 @@ function renderEpTitle() {
 
 // ── reasoning type filter ──
 let EV_FILTER = new Set();   // empty = show all
+let AGENT_FILTER = new Set();// empty = show all agents
 const EV_TYPES = ["user_input","reasoning","tool_use","tool_result","assistant_end"];
 function renderEvFilter() {
   const el = $("evfilter"); if (!el) return;
@@ -372,11 +374,32 @@ function renderEvFilter() {
   if (agents.length > 1) {
     const lg = document.createElement("span");
     lg.className = "evagents";
-    lg.innerHTML = "agents: " + agents.map(a=>`<span class="agid">${escapeHtml(a)}</span>`).join("");
+    lg.appendChild(document.createTextNode("agents: "));
+    agents.forEach(a => {
+      const chip = document.createElement("button");
+      const on = AGENT_FILTER.size === 0 || AGENT_FILTER.has(a);
+      chip.className = "agchip" + (on ? " on" : "");
+      chip.textContent = a;
+      chip.onclick = () => {
+        if (AGENT_FILTER.has(a)) AGENT_FILTER.delete(a);
+        else {
+          if (AGENT_FILTER.size === 0) agents.forEach(x => AGENT_FILTER.add(x));
+          AGENT_FILTER.delete(a);
+        }
+        if (AGENT_FILTER.size === 0 || AGENT_FILTER.size === agents.length) AGENT_FILTER.clear();
+        renderEvFilter(); renderEvents(); updateActiveByTime();
+      };
+      lg.appendChild(chip);
+    });
     el.appendChild(lg);
   }
 }
-function evVisible(r){ return EV_FILTER.size===0 || EV_FILTER.has(r.type); }
+function evVisible(r){
+  const typeOk = EV_FILTER.size===0 || EV_FILTER.has(r.type);
+  const ag = r.agent_id || "main";
+  const agentOk = AGENT_FILTER.size===0 || AGENT_FILTER.has(ag);
+  return typeOk && agentOk;
+}
 function updateActiveByTime(){ highlightEventsByTime(curEpTime()); }
 
 // pretty-print tool_input JSON compactly
