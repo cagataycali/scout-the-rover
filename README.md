@@ -25,6 +25,28 @@
 
 ---
 
+## 🔌 Use as an MCP server
+
+Drive Scout from **Claude Code, Claude Desktop, Cursor, Kiro, or any MCP client** — all 20 rover tools become MCP tools. Camera tools (`rover_see`, `rover_screenshot`) return real inline images.
+
+```bash
+# from a clone (with requirements.txt installed in the venv):
+pip install -r requirements.txt strands-mcp-server
+claude mcp add scout -- $(pwd)/.venv/bin/python $(pwd)/mcp_server_entry.py
+```
+
+Options:
+
+```bash
+python mcp_server_entry.py --tools rover_see,rover_move   # expose a subset
+python mcp_server_entry.py --skip telegram                # drop a tool
+python mcp_server_entry.py --http --port 8000             # HTTP mode, multi-client
+```
+
+> Tools connect to the rover lazily. The server starts without hardware — individual tool calls fail cleanly if the rover isn't reachable. If the rover SDK only lives on the rover itself, run `--http` mode there and add it as an HTTP MCP server.
+
+---
+
 ## 🛞 what is scout?
 
 **One Strands agent. Many faces. One little body on wheels.**
