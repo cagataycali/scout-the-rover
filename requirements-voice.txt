@@ -7,3 +7,4 @@ strands-agents[bidi-all]
 pywebrtc-audio>=0.1.0
 numpy>=1.24
 faster-whisper
+json_repair>=0.61

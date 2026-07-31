@@ -111,10 +111,12 @@ services:
       ROVER_SDK_URL: "http://sdk:8002"
       VOICE_PROVIDER: "${VOICE_PROVIDER:-openai}"
       VOICE_NAME: "${VOICE_NAME:-}"
+      # Mute noisy sources from the speech loop (non-urgent only). URGENT always speaks.
+      SCOUT_BRIEFING_MUTE_SOURCES: "${SCOUT_BRIEFING_MUTE_SOURCES:-thinker}"
     depends_on:
       sdk:
         condition: service_healthy
-    profiles: ["voice", "all"]
+    profiles: ["voice"]
 
 volumes:
   scout-auth-slim:

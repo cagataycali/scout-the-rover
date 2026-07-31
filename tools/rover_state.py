@@ -32,6 +32,8 @@ def rover_state() -> Dict[str, Any]:
         return error_result(f"/data HTTP {resp.status_code}: {resp.text[:200]}")
 
     d = resp.json()
+    if not isinstance(d, dict):
+        return error_result("rover offline: /data returned no telemetry (rover not connected)")
     gps_ok = d.get("gps_signal", 0) > 0 and d.get("latitude", 1000) != 1000
     summary = (
         f"🔋 {d.get('battery', '?')}% | 📶 signal {d.get('signal_level', '?')}/4 | "

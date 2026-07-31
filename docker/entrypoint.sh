@@ -78,7 +78,9 @@ start_agent() {
 }
 
 start_voice() {
-  exec python3 /app/voice_agent.py
+  # Rover is remote → route audio THROUGH the rover over the SDK by default.
+  # Override with SCOUT_VOICE_AUDIO=laptop for local mic/speakers.
+  exec python3 /app/voice_agent.py --audio "${SCOUT_VOICE_AUDIO:-rover}"
 }
 
 # Cosmos 3 Reasoner — vLLM server so cosmos3_reason/caption/embodied work.
