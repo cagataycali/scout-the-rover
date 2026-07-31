@@ -153,3 +153,51 @@ _oair.BidiOpenAIRealtimeModel._send_event = _guarded_send_event
 _oair.BidiOpenAIRealtimeModel._convert_openai_event = _lifecycle_convert
 # logger.info("🩹 patched response lifecycle: guard against double response.create")
 # print("🩹 voice patch applied: response.create conflict guard active")
+
+
+# Fix (round 2): the .done event's OWN `arguments` string is malformed JSON.
+#
+# The round-1 patch trusts the authoritative `.done` arguments over the
+# delta buffer — but observed failures ("Expecting ',' delimiter: line 1
+# column 54") prove the model itself emits BROKEN JSON in `.done`. The SDK
+# then drops the entire tool call → the tool never fires (rover goes deaf to
+# that command). We repair the JSON in-place on the `.done` event BEFORE the
+# downstream chain writes it to the buffer + json.loads() it.
+try:
+    from json_repair import repair_json as _repair_json
+except Exception:  # pragma: no cover
+    _repair_json = None
+
+_chain_convert = _oair.BidiOpenAIRealtimeModel._convert_openai_event
+
+
+def _argrepair_convert(self, openai_event):
+    if openai_event.get("type") == "response.function_call_arguments.done":
+        raw = openai_event.get("arguments")
+        if isinstance(raw, str) and raw:
+            try:
+                json.loads(raw)  # already valid → leave as-is
+            except json.JSONDecodeError as e:
+                repaired = None
+                if _repair_json is not None:
+                    try:
+                        repaired = _repair_json(raw)
+                        json.loads(repaired)  # validate repair
+                    except Exception:
+                        repaired = None
+                if repaired is not None:
+                    logger.warning(
+                        "call_id=<%s> | repaired malformed tool-call JSON (%s) — tool call PRESERVED",
+                        openai_event.get("call_id"), e,
+                    )
+                    openai_event["arguments"] = repaired
+                else:
+                    logger.error(
+                        "call_id=<%s> | tool-call JSON unrepairable (%s); raw=%r",
+                        openai_event.get("call_id"), e, raw[:300],
+                    )
+    return _chain_convert(self, openai_event)
+
+
+_oair.BidiOpenAIRealtimeModel._convert_openai_event = _argrepair_convert
+# print("🩹 voice patch applied: malformed tool-call JSON auto-repair active")

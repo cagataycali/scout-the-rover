@@ -343,6 +343,7 @@ def listen(callback: Callable[[dict], None], stop_event: Optional[threading.Even
                     continue
                 user = msg.get("from", {})
                 if not _user_allowed(user):
+                    print(f"[telegram] REJECTED (not in allowlist): id={user.get('id')} @{user.get('username')} name={user.get('first_name')} text={ (msg.get('text') or msg.get('caption') or '(media)')[:60]!r}", flush=True)
                     continue
 
                 chat_id = str(msg["chat"]["id"])

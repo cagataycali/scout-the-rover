@@ -34,3 +34,8 @@ yolov8n.pt
 .scout_calibration.json
 cosmos_clips/
 .venv-locate/
+
+.env.bak-*
+.env-example
+g1-work/
+neon-the-g1/

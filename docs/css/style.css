@@ -610,3 +610,48 @@ body.replay .ds-info { font-size: 12px; color: var(--txt-dim); white-space: nowr
 
 a.rback { color: var(--accent); text-decoration: none; font-size: 13px; opacity: .85; white-space: nowrap; }
 a.rback:active { opacity: 1; }
+
+/* 🎞️ replay — live image-sequence mode additions */
+.vmode { font-size: 11px; color: var(--txt-dim); margin: 4px 0 0; min-height: 14px; }
+.vmode.live { color: #ff5a6e; font-weight: 600; }
+.eplive { font-size: 9px; vertical-align: middle; }
+.agid { font-size: 9px; opacity: .6; margin: 0 4px; padding: 1px 4px;
+        border: 1px solid rgba(255,255,255,.18); border-radius: 5px; }
+.tnote { opacity: .45; padding: 8px; font-size: 12px; font-style: italic; }
+img.rvideo { object-fit: contain; }
+
+/* 🎞️ replay iter2 — episode title, filter chips, agent badges */
+.eptitle { margin: 0 0 10px; }
+.ept-task { font-size: 15px; font-weight: 700; color: var(--txt); line-height: 1.3; }
+.ept-meta { font-size: 11px; color: var(--txt-dim); margin-top: 3px; }
+.badge.b-live { background: rgba(255,90,110,.15); color: #ff5a6e; border: 1px solid rgba(255,90,110,.3);
+                padding: 1px 6px; border-radius: 6px; font-size: 10px; margin-left: 6px; }
+.evfilter { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 8px; align-items: center; }
+.evchip { font-size: 10px; padding: 3px 8px; border-radius: 999px; cursor: pointer;
+          background: rgba(255,255,255,.05); color: var(--txt-dim);
+          border: 1px solid rgba(255,255,255,.14); opacity: .5; transition: opacity .15s; }
+.evchip.on { opacity: 1; color: var(--txt); border-color: rgba(255,255,255,.3); }
+.evagents { font-size: 10px; color: var(--txt-dim); margin-left: auto; }
+.agchip { font-size: 10px; padding: 2px 7px; margin-left: 4px; border-radius: 999px;
+          cursor: pointer; background: rgba(118,185,0,.06); color: var(--txt-dim);
+          border: 1px solid rgba(118,185,0,.2); opacity: .55; transition: opacity .15s; }
+.agchip.on { opacity: 1; color: #9be319; border-color: rgba(118,185,0,.45); }
+
+/* 🎞️ replay iter3 — audio toggle */
+#btnAudio.on { background: rgba(118,185,0,.18); color: #9be319; border-color: rgba(118,185,0,.4); }
+#aud { display: none; }
+
+/* 🎞️ replay iter5 — episode thumbnails + refresh */
+.epitem { display: flex; gap: 9px; align-items: center; }
+.epthumb { width: 56px; height: 42px; object-fit: cover; border-radius: 7px;
+           flex: 0 0 auto; background: #000; border: 1px solid rgba(255,255,255,.1); }
+.epbody { flex: 1; min-width: 0; }
+.rrefresh { padding: 4px 9px; font-size: 14px; }
+.rrefresh.spin { animation: rspin .5s linear; }
+@keyframes rspin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+
+/* 🎞️ replay iter6 — empty state */
+.rempty { display: flex; flex-direction: column; gap: 5px; padding: 22px 14px; text-align: center;
+          color: var(--txt-dim); }
+.rempty b { color: var(--txt); font-size: 14px; }
+.rempty span { font-size: 12px; opacity: .8; }

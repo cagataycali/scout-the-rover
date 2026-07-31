@@ -43,6 +43,7 @@
   <div class="rtools">
     <a class="rback" href="/">← live</a>
     <select id="dsSel"></select>
+    <button class="rbtn rrefresh" id="btnRefresh" title="reload episodes (live datasets grow)">⟳</button>
     <span class="ds-info" id="dsInfo"></span>
   </div>
 </header>
@@ -52,15 +53,20 @@
     <!-- video + scrubber + graph + telemetry -->
     <div>
       <div class="rpanel">
+        <div class="eptitle" id="eptitle"></div>
         <video id="vid" class="rvideo" preload="auto" playsinline></video>
+        <img id="vimg" class="rvideo" style="display:none" alt="frame" />
         <div class="vlabel" id="vlabel">front</div>
+        <div class="vmode" id="vmode"></div>
         <input class="scrub" id="scrub" type="range" min="0" max="1000" value="0" step="1" />
         <div class="timerow"><span id="tCur">0.00s</span><span id="tDur">0.00s</span></div>
         <div class="rcontrols">
           <button class="rbtn" id="btnPlay">▶︎ play</button>
           <button class="rbtn" id="btnView">⇆ rear</button>
           <button class="rbtn" id="btnSpeed">1×</button>
+          <button class="rbtn" id="btnAudio" title="toggle audio">🔇 audio</button>
           <span class="frame-lbl" id="frameLbl">frame 0</span>
+          <audio id="aud" preload="auto"></audio>
         </div>
         <canvas class="graph" id="graph"></canvas>
         <div class="glegend">
@@ -87,6 +93,7 @@
       </div>
       <div class="rpanel">
         <h2>🧠 reasoning timeline</h2>
+        <div class="evfilter" id="evfilter"></div>
         <div class="events" id="events"></div>
       </div>
     </div>

@@ -408,35 +408,120 @@ class _RoverAudioOutput:
 # about them in real time and can react (usually with MOTION, per persona).
 # ─────────────────────────────────────────────────────────────────────────────
 class _BriefingInput:
-    """Pulls briefings from voice_bridge SQLite queue → BidiTextInputEvent."""
+    """Pulls briefings from voice_bridge SQLite queue → BidiTextInputEvent.
+
+    DEBOUNCED + RESPONSE-GATED. Other daemons can push briefings at any rate,
+    but we must NOT inject one while the realtime model is mid-response, or
+    OpenAI rejects the implicit response.create with
+    "conversation_already_has_active_response" (dropped/cut-off speech).
+
+    Strategy:
+      • poll the SQLite queue every POLL_SECONDS and buffer rows locally
+      • DEBOUNCE: after the first buffered row, wait until no NEW rows have
+        arrived for DEBOUNCE_SECONDS (coalesce a burst into one briefing),
+        but cap the wait at MAX_HOLD_SECONDS so nothing is starved
+      • URGENT (importance>=2) bypasses debounce → flush ASAP
+      • GATE: before emitting, wait until the model is idle
+        (model._active_response is False, tracked by _voice_patch), so the
+        briefing never collides with an in-flight response
+    """
 
     POLL_SECONDS = 2.0
     BATCH_SIZE = 5
+    DEBOUNCE_SECONDS = float(os.getenv("SCOUT_BRIEFING_DEBOUNCE_S", "4.0"))
+    MAX_HOLD_SECONDS = float(os.getenv("SCOUT_BRIEFING_MAX_HOLD_S", "20.0"))
+    GATE_POLL_SECONDS = 0.25
+    GATE_TIMEOUT_SECONDS = float(os.getenv("SCOUT_BRIEFING_GATE_TIMEOUT_S", "15.0"))
+    # Sources whose briefings are NOT pushed to the speech loop (comma-separated).
+    # e.g. SCOUT_BRIEFING_MUTE_SOURCES=thinker  → thinker chatter never speaks.
+    # URGENT (importance>=2) messages ALWAYS bypass the mute (safety).
+    MUTE_SOURCES = {
+        s.strip().lower()
+        for s in os.getenv("SCOUT_BRIEFING_MUTE_SOURCES", "").split(",")
+        if s.strip()
+    }
+
+    def __init__(self):
+        self._model = None
+        self._buf = []  # list[(source, msg, imp)]
 
     async def start(self, agent) -> None:
         from tools.voice_bridge import flush_stale
+        self._model = getattr(agent, "model", None)
         n = flush_stale()
         if n:
             print(f"🌉 voice_bridge: skipped {n} stale briefing(s) on startup")
-        print("🌉 voice_bridge briefing channel live (telegram/thinker/agent → voice)")
+        print("🌉 voice_bridge briefing channel live (telegram/thinker/agent → voice) "
+              f"[debounce={self.DEBOUNCE_SECONDS}s, gate=on]")
 
     async def stop(self) -> None:
         pass
 
+    def _model_busy(self) -> bool:
+        return bool(getattr(self._model, "_active_response", False))
+
+    async def _wait_until_idle(self) -> None:
+        """Block until the model finishes its current response (bounded)."""
+        waited = 0.0
+        while self._model_busy() and waited < self.GATE_TIMEOUT_SECONDS:
+            await asyncio.sleep(self.GATE_POLL_SECONDS)
+            waited += self.GATE_POLL_SECONDS
+
+    def _filter(self, rows):
+        """Drop briefings from muted sources (unless URGENT). Returns
+        list[(source, msg, imp)] of the rows that should reach the speech loop.
+        Muted rows are already popped/marked-delivered, so they are simply
+        discarded from the voice path (they still live in the SQLite log)."""
+        out = []
+        dropped = 0
+        for _id, source, msg, imp in rows:
+            if imp < 2 and str(source).lower() in self.MUTE_SOURCES:
+                dropped += 1
+                continue
+            out.append((source, msg, imp))
+        if dropped:
+            print(f"🌉 muted {dropped} briefing(s) from {sorted(self.MUTE_SOURCES)} "
+                  f"(non-urgent) — not pushed to speech")
+        return out
+
     async def __call__(self):
         from strands.experimental.bidi.types.events import BidiTextInputEvent
         from tools.voice_bridge import pop_pending
+
         while True:
-            await asyncio.sleep(self.POLL_SECONDS)
-            rows = await asyncio.to_thread(pop_pending, self.BATCH_SIZE)
-            if not rows:
-                continue
+            # 1) accumulate the first batch
+            if not self._buf:
+                await asyncio.sleep(self.POLL_SECONDS)
+                rows = await asyncio.to_thread(pop_pending, self.BATCH_SIZE)
+                kept = self._filter(rows)
+                if not kept:
+                    continue
+                self._buf.extend(kept)
+
+            # 2) debounce: keep draining until quiet or urgent or max-hold hit
+            held = 0.0
+            urgent = any(imp >= 2 for _s, _m, imp in self._buf)
+            while not urgent and held < self.MAX_HOLD_SECONDS:
+                await asyncio.sleep(self.DEBOUNCE_SECONDS)
+                held += self.DEBOUNCE_SECONDS
+                more = self._filter(await asyncio.to_thread(pop_pending, self.BATCH_SIZE))
+                if more:
+                    self._buf.extend(more)
+                    urgent = any(imp >= 2 for _s, _m, imp in self._buf)
+                    continue
+                break  # no new rows during the window → burst settled
+
+            # 3) response-gate: don't collide with an in-flight response
+            await self._wait_until_idle()
+
+            # 4) coalesce buffered rows into ONE briefing
             lines = []
-            for _id, source, msg, imp in rows:
+            for source, msg, imp in self._buf:
                 tag = "URGENT" if imp >= 2 else "info"
                 lines.append(f"[{source}/{tag}] {msg}")
+            self._buf = []
             briefing = "[BRIEFING] " + " | ".join(lines)
-            print(f"🌉 → voice: {briefing[:160]}")
+            print(f"🌉 → voice ({len(lines)} coalesced): {briefing[:160]}")
             return BidiTextInputEvent(text=briefing, role="user")
 
 
