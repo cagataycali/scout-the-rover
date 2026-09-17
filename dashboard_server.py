@@ -686,7 +686,9 @@ async def ws_voice(ws: WebSocket):
             return
     loop = asyncio.get_event_loop()
     in_q: "asyncio.Queue[bytes]" = asyncio.Queue()
-    stop_evt = threading.Event()
+    # asyncio.Event, NOT threading.Event: `await threading.Event().wait()` blocks the
+    # event loop forever (wait() is synchronous) and freezes the whole dashboard.
+    stop_evt = asyncio.Event()
 
     try:
         from voice_agent import build_voice_agent
