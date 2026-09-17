@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="theme-color" content="#0a0a0f" />
 <title>scout · Earth Rover Mini</title>
-<link rel="stylesheet" href="css/style.css" />
+<link rel="stylesheet" href="css/style.css?v=357b80f-p3" />
 </head>
 <body>
 <div class="aurora"></div>
@@ -46,6 +46,7 @@
     <div class="pill" id="pillSignal"><span class="pi">📶</span><span class="pv" id="vSignal">--</span></div>
     <div class="pill" id="pillGps"><span class="pi">📍</span><span class="pv" id="vGps">--</span></div>
   </div>
+  <div class="persona-pills" id="personaPills" aria-label="personas"></div>
   <a class="icon-btn" href="/replay" aria-label="replay" title="recordings replay" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">🎞️</a>
   <button class="icon-btn" id="btnLock" aria-label="lock" title="lock / sign out" onclick="window.ScoutAuth && window.ScoutAuth.logout()">🔒</button>
   <button class="icon-btn" id="btnSettings" aria-label="settings">⚙️</button>
@@ -149,6 +150,13 @@
       </label>
     </div>
 
+    <div class="persona-section" id="personaSection">
+      <h3>🎭 Personas</h3>
+      <small class="env-hint">Who is running on Scout. Container personas are started/stopped by a host-side supervisor (no docker socket in this container); <b>thinker drive</b> and <b>rec</b> are live switches the processes poll every cycle.</small>
+      <div id="personaList" class="persona-list"></div>
+      <small class="env-hint" id="personaNote"></small>
+    </div>
+
     <div class="passkey-section" id="passkeySection">
       <h3>🔑 Admin passkeys</h3>
       <small class="env-hint">Devices allowed to drive this rover. Add a teammate's device, rename, or revoke. You can't remove the last one.</small>
@@ -213,7 +221,8 @@
 
 <div class="toast-host" id="toastHost"></div>
 
-<script src="js/auth.js"></script>
-<script src="js/app.js"></script>
+<script src="js/auth.js?v=357b80f-p3"></script>
+<script src="js/app.js?v=357b80f-p3"></script>
+<script src="js/personas.js?v=357b80f-p3"></script>
 </body>
 </html>
