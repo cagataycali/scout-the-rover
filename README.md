@@ -6,12 +6,16 @@
 
 **A [Strands](https://strandsagents.com) agent that sees, thinks, talks, and drives a [FrodoBots Earth Rover Mini+](https://www.frodobots.com/) — and remembers every frame to teach the next scout.**
 
+[![docs](https://github.com/cagataycali/scout-the-rover/actions/workflows/docs.yml/badge.svg)](https://cagataycali.github.io/scout-the-rover/)
+[![last commit](https://img.shields.io/github/last-commit/cagataycali/scout-the-rover?style=flat-square&color=2ee6d6)](https://github.com/cagataycali/scout-the-rover/commits/main)
+[![license](https://img.shields.io/badge/license-MIT-16b9c4?style=flat-square)](LICENSE)
 [![sdk](https://img.shields.io/badge/sdk-earth--rovers--sdk-00ff88?style=flat-square)](https://github.com/cagataycali/earth-rovers-sdk)
-[![tools](https://img.shields.io/badge/tools-17_(+cosmos)-ff2a6d?style=flat-square)](#-the-toolbelt)
+[![tools](https://img.shields.io/badge/tools-20_(+fleet_+cosmos)-ff2a6d?style=flat-square)](https://cagataycali.github.io/scout-the-rover/reference/tools/)
 [![strands](https://img.shields.io/badge/built_with-strands_agents-b967ff?style=flat-square)](https://strandsagents.com)
 [![cosmos](https://img.shields.io/badge/🌌_NVIDIA-cosmos-76b900?style=flat-square)](https://github.com/strands-labs/strands-for-cosmos)
 [![dataset](https://img.shields.io/badge/🤗_dataset-scout--earthrover--ecot-ffce1c?style=flat-square)](https://huggingface.co/datasets/cagataydev/scout-earthrover-ecot)
-[![license](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](#-license)
+
+**📖 Documentation → [cagataycali.github.io/scout-the-rover](https://cagataycali.github.io/scout-the-rover/)**
 
 </div>
 
@@ -22,6 +26,27 @@
 <p align="center">
   <img src="docs/media/branding/personas.svg" alt="one body · five faces" width="100%"/>
 </p>
+
+---
+
+## ⚡ 60-second quickstart
+
+```bash
+git clone https://github.com/cagataycali/scout-the-rover.git && cd scout-the-rover
+cp .env.example .env                       # SDK token + rover slug, a Bedrock model id, optional OpenAI/Telegram
+make sdk && $EDITOR earth-rovers-sdk/.env  # our fork of the Earth Rovers SDK (auto-join, video watchdog)
+make docker-slim-build                     # scout:slim — CPU only, arm64/amd64, ~16 GB
+make docker-slim-up-all                    # sdk :8002 · dashboard :8080 (TLS) · telegram · thinker · media · yolo
+open https://localhost:8080                # enrol a passkey → joystick → "do a slow 360 and tell me what you see"
+```
+
+Full walkthrough, hardware list and the `.env` explained: **[Start →](https://cagataycali.github.io/scout-the-rover/start/hardware/)**
+
+| | | |
+|---|---|---|
+| 🖥️ **[Dashboard](https://cagataycali.github.io/scout-the-rover/dashboard/)** — passkey-gated PWA cockpit: cameras, joystick, live agent stream, persona pills, replay | 🎭 **[Personas](https://cagataycali.github.io/scout-the-rover/personas/)** — voice · thinker · telegram · dashboard · REPL, switched live via a host-side supervisor | 🎙 **[Voice](https://cagataycali.github.io/scout-the-rover/voice/)** — OpenAI Realtime / Nova Sonic / Gemini over the rover's own mic + speaker |
+| 👁️ **[Perception](https://cagataycali.github.io/scout-the-rover/perception/)** — MediaHub fan-out, YOLO sidecars, room map, dead reckoning | 📦 **[Datasets](https://cagataycali.github.io/scout-the-rover/datasets/)** — LeRobot v3 + ECoT, sealed episodes, replay, repair | 🛰 **[Fleet](https://cagataycali.github.io/scout-the-rover/fleet/)** — tiny.technology MCP: ask sibling robots for help, one hop deep |
+| 🧰 **[Tools reference](https://cagataycali.github.io/scout-the-rover/reference/tools/)** — every `@tool`, generated from the code | 🔧 **[Operations](https://cagataycali.github.io/scout-the-rover/guide/operations/)** — bring-up, restarts, tunnel, watchdogs, pre-demo checklist | 🛞 **[Hardware & 3D](https://cagataycali.github.io/scout-the-rover/hardware/)** — the rover, the Thor, where the official CAD lives |
 
 ---
 
@@ -223,8 +248,8 @@ for a public-internet-safe rover.
 
 ## 🧰 the toolbelt
 
-**17 tools**, all in `tools/`. Vision returns images the model SEES; motion
-always auto-stops; everything else is one HTTP hop to the SDK.
+**20 tools**, all in `tools/` (+ `use_device` when the [fleet bridge](https://cagataycali.github.io/scout-the-rover/fleet/) is on, + Cosmos on GPU). Vision returns images the model SEES; motion
+always auto-stops; everything else is one HTTP hop to the SDK. The always-current reference, generated from the docstrings: **[Tools →](https://cagataycali.github.io/scout-the-rover/reference/tools/)**
 
 | tool | what |
 |---|---|
@@ -416,9 +441,9 @@ All live-configurable from the ⚙️ drawer — no file edits, no restart:
 | **Manual drive** | ⌨️ WASD + 🕹️ glass joystick → `/control`; e-stop |
 | **Voice** | 🎙️ browser mic → bidi model → speakers (PCM16 over `/ws/voice`) |
 | **Cameras** | front/rear PiP swap, lamp, snapshot |
-| **Fleet** | 🛰 tiny.technology MCP inside the agents — `use_device` (fomo / q-the-brain / the Mac / Reachy), shared memory, mesh; OFF unless `TINY_MCP=1`, allow-listed, self-invoke refused, depth-1 cap via gated `POST /api/chat`. See [docs/MCP.md](docs/MCP.md) |
-| **Personas** | 🎭 topbar pills + sheet: turn 🎙 rover-voice · 🧠 thinker · 🕹 thinker drive · ✈ telegram · ⏺ rec ON/OFF live — containers via a host-side unix-socket supervisor (no docker socket in the container), flags via `.memory/personas.json`. See [docs/PERSONAS.md](docs/PERSONAS.md) |
-| **Datasets** | 🎞 LeRobot v3, one per day per persona; episodes are **sealed** after every save (lerobot 0.6 only writes parquet footers on finalize) so the replay always has per-episode video windows; `tools/repair_episode_index.py` rebuilds a footerless index; `/api/replay` reports `index_state`. See [docs/DATASETS.md](docs/DATASETS.md) |
+| **Fleet** | 🛰 tiny.technology MCP inside the agents — `use_device` (fomo / q-the-brain / the Mac / Reachy), shared memory, mesh; OFF unless `TINY_MCP=1`, allow-listed, self-invoke refused, depth-1 cap via gated `POST /api/chat`. See [Fleet](https://cagataycali.github.io/scout-the-rover/fleet/) |
+| **Personas** | 🎭 topbar pills + sheet: turn 🎙 rover-voice · 🧠 thinker · 🕹 thinker drive · ✈ telegram · ⏺ rec ON/OFF live — containers via a host-side unix-socket supervisor (no docker socket in the container), flags via `.memory/personas.json`. See [Personas](https://cagataycali.github.io/scout-the-rover/personas/) |
+| **Datasets** | 🎞 LeRobot v3, one per day per persona; episodes are **sealed** after every save (lerobot 0.6 only writes parquet footers on finalize) so the replay always has per-episode video windows; `tools/repair_episode_index.py` rebuilds a footerless index; `/api/replay` reports `index_state`. See [Datasets](https://cagataycali.github.io/scout-the-rover/datasets/) |
 
 ```
  browser  ──WS /ws/chat──►  dashboard_server  ──►  agent.py (scout)
@@ -618,7 +643,9 @@ make test    # unit tests, SDK fully mocked — no robot needed
 
 ## 📄 license
 
-MIT — go drive something.
+[MIT](LICENSE) — go drive something.
+
+> `docs/` is the cockpit's static frontend served by `dashboard_server.py`; the documentation **site** lives in `website/` (`mkdocs serve`).
 
 <div align="center">
 

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" role="img" aria-label="scout per-turn loop">
+  <title>scout · per-turn ECoT loop</title>
+  <desc>STATE → SEE → THINK → ACT → LEARN, repeating every turn. The model wakes up already oriented and already seeing the road.</desc>
+  <defs>
+    <linearGradient id="lBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#1f2a1a"/>
+      <stop offset="100%" stop-color="#0d130a"/>
+    </linearGradient>
+    <linearGradient id="lTile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#e8e3c7" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#3d4a2a" stop-opacity="0.08"/>
+    </linearGradient>
+    <marker id="lArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#a8d99a"/>
+    </marker>
+    <filter id="lGlow"><feGaussianBlur stdDeviation="2"/></filter>
+  </defs>
+
+  <rect width="1200" height="320" fill="url(#lBg)"/>
+  <text x="600" y="34" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="15" font-weight="700" fill="#cfd6b0">per-turn loop · scout wakes up already SEEING and already ORIENTED</text>
+
+  <g font-family="ui-monospace,SFMono-Regular,Menlo,monospace" fill="#f3f1de">
+    <!-- 1 STATE -->
+    <g transform="translate(40,68)">
+      <rect width="208" height="190" rx="14" fill="url(#lTile)" stroke="#a8d99a" stroke-opacity="0.6"/>
+      <text x="100" y="36" font-size="13" font-weight="700" fill="#a8d99a" text-anchor="middle">① STATE</text>
+      <text x="100" y="58" font-size="11" fill="#cfd6b0" text-anchor="middle">live telemetry inject</text>
+      <text x="14" y="92"  font-size="11">battery 100%</text>
+      <text x="14" y="112" font-size="11">orientation 346°</text>
+      <text x="14" y="132" font-size="11">gps · imu · signal 5/4</text>
+      <text x="14" y="158" font-size="10" fill="#a8b07a">[27-dim state vector]</text>
+      <text x="14" y="176" font-size="9"  fill="#7d8b48">no defensive tool calls</text>
+    </g>
+    <!-- 2 SEE -->
+    <g transform="translate(270,68)">
+      <rect width="208" height="190" rx="14" fill="url(#lTile)" stroke="#ffce6b" stroke-opacity="0.6"/>
+      <text x="100" y="36" font-size="13" font-weight="700" fill="#ffce6b" text-anchor="middle">② SEE</text>
+      <text x="100" y="58" font-size="11" fill="#cfd6b0" text-anchor="middle">multimodal frames</text>
+      <text x="14" y="92"  font-size="11">rover_see(both)</text>
+      <text x="14" y="112" font-size="11">→ inline image blocks</text>
+      <text x="14" y="132" font-size="11">→ YOLO + Locate-3B</text>
+      <text x="14" y="158" font-size="10" fill="#a8b07a">[model SEES, not reads]</text>
+      <text x="14" y="176" font-size="9"  fill="#7d8b48">Converse jpeg bytes</text>
+    </g>
+    <!-- 3 THINK -->
+    <g transform="translate(500,68)">
+      <rect width="208" height="190" rx="14" fill="url(#lTile)" stroke="#ff7a59" stroke-opacity="0.6"/>
+      <text x="100" y="36" font-size="13" font-weight="700" fill="#ff7a59" text-anchor="middle">③ THINK</text>
+      <text x="100" y="58" font-size="11" fill="#cfd6b0" text-anchor="middle">ECoT reasoning</text>
+      <text x="14" y="92"  font-size="11">plan + safety FSM</text>
+      <text x="14" y="112" font-size="11">cosmos3_embodied (opt)</text>
+      <text x="14" y="132" font-size="11">rover_memory recall</text>
+      <text x="14" y="158" font-size="10" fill="#a8b07a">[saved as SQLite]</text>
+      <text x="14" y="176" font-size="9"  fill="#7d8b48">role/type/tool/text</text>
+    </g>
+    <!-- 4 ACT -->
+    <g transform="translate(730,68)">
+      <rect width="208" height="190" rx="14" fill="url(#lTile)" stroke="#b88aff" stroke-opacity="0.6"/>
+      <text x="100" y="36" font-size="13" font-weight="700" fill="#b88aff" text-anchor="middle">④ ACT</text>
+      <text x="100" y="58" font-size="11" fill="#cfd6b0" text-anchor="middle">safe rover drive</text>
+      <text x="14" y="92"  font-size="11">rover_navigate(crawl..max)</text>
+      <text x="14" y="112" font-size="11">clamp · re-stream · auto-stop</text>
+      <text x="14" y="132" font-size="11">rover_speak · rover_lamp</text>
+      <text x="14" y="158" font-size="10" fill="#a8b07a">[always reversible]</text>
+      <text x="14" y="176" font-size="9"  fill="#7d8b48">rover_stop = hard kill</text>
+    </g>
+    <!-- 5 LEARN -->
+    <g transform="translate(960,68)">
+      <rect width="208" height="190" rx="14" fill="url(#lTile)" stroke="#7ed5ff" stroke-opacity="0.6"/>
+      <text x="100" y="36" font-size="13" font-weight="700" fill="#7ed5ff" text-anchor="middle">⑤ LEARN</text>
+      <text x="100" y="58" font-size="11" fill="#cfd6b0" text-anchor="middle">record · remember</text>
+      <text x="14" y="92"  font-size="11">LeRobot v3 parquet+mp4</text>
+      <text x="14" y="112" font-size="11">reasoning_events.sqlite</text>
+      <text x="14" y="132" font-size="11">rover_memory(remember)</text>
+      <text x="14" y="158" font-size="10" fill="#a8b07a">[next scout learns]</text>
+      <text x="14" y="176" font-size="9"  fill="#7d8b48">→ HuggingFace</text>
+    </g>
+
+    <!-- arrows -->
+    <g stroke="#a8d99a" stroke-width="2" fill="none" marker-end="url(#lArrow)">
+      <line x1="252" y1="158" x2="266" y2="158"/>
+      <line x1="482" y1="158" x2="496" y2="158"/>
+      <line x1="712" y1="158" x2="726" y2="158"/>
+      <line x1="942" y1="158" x2="956" y2="158"/>
+      <!-- loop back -->
+      <path d="M 1064 262 Q 1064 296 600 296 Q 144 296 144 262" stroke-dasharray="4 6" filter="url(#lGlow)"/>
+    </g>
+    <text x="600" y="312" text-anchor="middle" font-size="11" fill="#a8b07a">↻ every turn — and every frame is kept, so the next scout learns its mistakes</text>
+  </g>
+</svg>

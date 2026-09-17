@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 480"
+     role="img" aria-label="scout — a small robot with a big curiosity">
+  <title>scout · earth rover mini</title>
+  <desc>Animated glassmorphic banner with camouflage earth palette: a small rover ferrying frames of the world back to a memory core.</desc>
+
+  <!-- =========  PALETTE (earth + camo)  ========= -->
+  <defs>
+    <!-- camouflage gradient base -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#1f2a1a"/>
+      <stop offset="35%" stop-color="#2a3a24"/>
+      <stop offset="65%" stop-color="#3a4a2c"/>
+      <stop offset="100%" stop-color="#1a221a"/>
+    </linearGradient>
+
+    <!-- glass card gradient -->
+    <linearGradient id="glassGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#e8e3c7" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#5a6b3f" stop-opacity="0.05"/>
+    </linearGradient>
+
+    <!-- amber accent (sunlight on dirt) -->
+    <radialGradient id="sun" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#ffce6b" stop-opacity="0.55"/>
+      <stop offset="60%" stop-color="#c98a3a" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- moss / dusty terra accents -->
+    <linearGradient id="rover" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d4cfa3"/>
+      <stop offset="100%" stop-color="#7b8456"/>
+    </linearGradient>
+
+    <!-- camouflage blob pattern -->
+    <pattern id="camo" x="0" y="0" width="220" height="220" patternUnits="userSpaceOnUse">
+      <rect width="220" height="220" fill="#28321f"/>
+      <path d="M30 40 Q60 10 90 30 T160 50 Q190 80 170 110 T120 150 Q80 170 50 140 T20 80 Z"
+            fill="#3d4a2a" opacity="0.7"/>
+      <path d="M120 30 Q150 20 175 50 T210 100 Q205 130 180 140 T130 130 Q110 100 115 70 Z"
+            fill="#4d5b32" opacity="0.55"/>
+      <path d="M40 130 Q70 120 100 140 T150 180 Q130 210 90 200 T30 180 Q20 155 40 130 Z"
+            fill="#1c241a" opacity="0.6"/>
+      <ellipse cx="180" cy="190" rx="20" ry="12" fill="#6b7846" opacity="0.45"/>
+      <ellipse cx="60"  cy="60"  rx="14" ry="8"  fill="#8a946a" opacity="0.35"/>
+    </pattern>
+
+    <!-- soft blur for glass -->
+    <filter id="blur" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+
+    <!-- glow -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- frame icon (a tiny camera frame the rover ferries back) -->
+    <symbol id="frame" viewBox="0 0 40 28">
+      <rect x="0.5" y="0.5" width="39" height="27" rx="3"
+            fill="#e8e3c7" fill-opacity="0.12"
+            stroke="#e8e3c7" stroke-opacity="0.55" stroke-width="1"/>
+      <circle cx="20" cy="14" r="5" fill="none"
+              stroke="#ffce6b" stroke-opacity="0.8" stroke-width="1.2"/>
+      <circle cx="20" cy="14" r="2" fill="#ffce6b" fill-opacity="0.9"/>
+    </symbol>
+  </defs>
+
+  <!-- ========= BACKDROP ========= -->
+  <rect width="1200" height="480" fill="url(#bgGrad)"/>
+  <rect width="1200" height="480" fill="url(#camo)" opacity="0.45"/>
+  <!-- sun glow drifting -->
+  <circle cx="900" cy="120" r="280" fill="url(#sun)">
+    <animate attributeName="cx" values="900;820;900" dur="14s" repeatCount="indefinite"/>
+    <animate attributeName="cy" values="120;160;120" dur="14s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- atmospheric horizon mist -->
+  <rect x="0" y="320" width="1200" height="160" fill="#e8e3c7" opacity="0.04" filter="url(#blur)"/>
+
+  <!-- ========= GLASS CARD ========= -->
+  <g>
+    <rect x="60" y="60" width="1080" height="360" rx="26"
+          fill="url(#glassGrad)"
+          stroke="#e8e3c7" stroke-opacity="0.18" stroke-width="1"/>
+    <!-- specular sheen -->
+    <rect x="60" y="60" width="1080" height="100" rx="26"
+          fill="#ffffff" opacity="0.05"/>
+  </g>
+
+  <!-- ========= TITLE ========= -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'SF Pro Display', Inter, Roboto, sans-serif" fill="#f3f1de">
+    <text x="110" y="150" font-size="64" font-weight="800" letter-spacing="-1">
+      scout <tspan fill="#ffce6b">🛞</tspan>
+    </text>
+    <text x="112" y="190" font-size="22" font-weight="500" opacity="0.82" fill="#d8d3aa">
+      a small robot with a big curiosity
+    </text>
+    <text x="112" y="230" font-size="16" opacity="0.62" fill="#bdb88c">
+      strands agent · earth rover mini+ · sees · thinks · drives · remembers
+    </text>
+
+    <!-- mini KPI chips -->
+    <g font-size="13" font-weight="600">
+      <g transform="translate(110,260)">
+        <rect width="160" height="34" rx="17" fill="#e8e3c7" fill-opacity="0.08"
+              stroke="#e8e3c7" stroke-opacity="0.25"/>
+        <text x="16" y="22" fill="#ffce6b">🧠 17 tools</text>
+        <text x="86" y="22" fill="#e8e3c7" opacity="0.7">+ cosmos</text>
+      </g>
+      <g transform="translate(282,260)">
+        <rect width="170" height="34" rx="17" fill="#e8e3c7" fill-opacity="0.08"
+              stroke="#e8e3c7" stroke-opacity="0.25"/>
+        <text x="16" y="22" fill="#a8d99a">📦 LeRobot v3</text>
+        <text x="106" y="22" fill="#e8e3c7" opacity="0.7">ECoT</text>
+      </g>
+      <g transform="translate(464,260)">
+        <rect width="200" height="34" rx="17" fill="#e8e3c7" fill-opacity="0.08"
+              stroke="#e8e3c7" stroke-opacity="0.25"/>
+        <text x="16" y="22" fill="#ffce6b">🌐 cloudflare tunnel</text>
+        <text x="156" y="22" fill="#e8e3c7" opacity="0.7">PWA</text>
+      </g>
+    </g>
+
+    <text x="112" y="340" font-size="13" opacity="0.5" fill="#bdb88c" font-style="italic">
+      "every frame I keep, so the next scout learns my fault."
+    </text>
+  </g>
+
+  <!-- ========= ANIMATED ROVER + FRAMES ========= -->
+  <!-- terrain line -->
+  <path d="M720 360 Q820 350 920 360 T1100 358" fill="none"
+        stroke="#e8e3c7" stroke-opacity="0.18" stroke-width="1.5"
+        stroke-dasharray="4 6"/>
+
+  <!-- the rover -->
+  <g transform="translate(820,300)">
+    <!-- bobbing motion -->
+    <animateTransform attributeName="transform" type="translate"
+                      values="820,300; 880,296; 940,302; 1000,298; 940,302; 880,296; 820,300"
+                      dur="9s" repeatCount="indefinite"/>
+
+    <!-- body -->
+    <rect x="-44" y="-30" width="88" height="44" rx="10" fill="url(#rover)"
+          stroke="#3d4a2a" stroke-width="1.2"/>
+    <!-- camera dome -->
+    <circle cx="0" cy="-36" r="10" fill="#2a2a25" stroke="#ffce6b" stroke-width="1.4"/>
+    <circle cx="0" cy="-36" r="3" fill="#ffce6b" filter="url(#glow)">
+      <animate attributeName="r" values="3;4.2;3" dur="2.4s" repeatCount="indefinite"/>
+    </circle>
+    <!-- antenna -->
+    <line x1="22" y1="-30" x2="32" y2="-52" stroke="#e8e3c7" stroke-opacity="0.6" stroke-width="1.4"/>
+    <circle cx="32" cy="-52" r="2.4" fill="#ffce6b">
+      <animate attributeName="fill-opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite"/>
+    </circle>
+    <!-- wheels -->
+    <g fill="#1f2418" stroke="#3d4a2a" stroke-width="1.2">
+      <circle cx="-28" cy="18" r="10"/>
+      <circle cx="28"  cy="18" r="10"/>
+    </g>
+    <g fill="#5a6b3f">
+      <circle cx="-28" cy="18" r="4">
+        <animateTransform attributeName="transform" type="rotate"
+                          from="0 -28 18" to="360 -28 18" dur="1.2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="28" cy="18" r="4">
+        <animateTransform attributeName="transform" type="rotate"
+                          from="0 28 18" to="360 28 18" dur="1.2s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+    <!-- "I see" frustum -->
+    <path d="M0 -40 L48 -70 L48 -10 Z" fill="#ffce6b" opacity="0.18">
+      <animate attributeName="opacity" values="0.18;0.05;0.18" dur="3s" repeatCount="indefinite"/>
+    </path>
+  </g>
+
+  <!-- frames flying toward a "memory core" on the left -->
+  <g>
+    <use href="#frame" x="700" y="200">
+      <animateTransform attributeName="transform" type="translate"
+                        values="0,0; -260,30; -520,40"
+                        dur="6s" repeatCount="indefinite"/>
+      <animate attributeName="opacity"
+               values="1;1;0" dur="6s" repeatCount="indefinite"/>
+    </use>
+    <use href="#frame" x="700" y="230">
+      <animateTransform attributeName="transform" type="translate"
+                        values="0,0; -260,10; -520,0"
+                        dur="6s" begin="2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity"
+               values="1;1;0" dur="6s" begin="2s" repeatCount="indefinite"/>
+    </use>
+    <use href="#frame" x="700" y="180">
+      <animateTransform attributeName="transform" type="translate"
+                        values="0,0; -260,50; -520,80"
+                        dur="6s" begin="4s" repeatCount="indefinite"/>
+      <animate attributeName="opacity"
+               values="1;1;0" dur="6s" begin="4s" repeatCount="indefinite"/>
+    </use>
+  </g>
+
+  <!-- memory core (hex) -->
+  <g transform="translate(180,210)">
+    <polygon points="0,-40 35,-20 35,20 0,40 -35,20 -35,-20"
+             fill="#e8e3c7" fill-opacity="0.08"
+             stroke="#ffce6b" stroke-opacity="0.65" stroke-width="1.5"/>
+    <polygon points="0,-26 23,-13 23,13 0,26 -23,13 -23,-13"
+             fill="none" stroke="#a8d99a" stroke-opacity="0.55" stroke-width="1"/>
+    <text x="0" y="5" font-family="ui-sans-serif, system-ui, -apple-system, 'SF Mono', monospace"
+          font-size="11" fill="#ffce6b" text-anchor="middle" letter-spacing="2">ECoT</text>
+    <animate attributeName="opacity" values="0.9;1;0.9" dur="3s" repeatCount="indefinite"/>
+  </g>
+
+  <!-- soft scanline at bottom -->
+  <rect x="0" y="476" width="1200" height="4" fill="#ffce6b" opacity="0.25"/>
+</svg>

@@ -1,0 +1,12 @@
+{% extends "main.html" %}
+{% block content %}
+<div class="hero" markdown>
+  <p class="tagline" style="font-size:3rem;color:var(--accent);margin-bottom:0;">404</p>
+  <p class="tagline">that page rolled off the map — scout is turning around</p>
+  <div class="buttons">
+    <a href="{{ '' | url }}" class="md-button md-button--primary">← home</a>
+    <a href="{{ 'start/first-drive/' | url }}" class="md-button">quickstart</a>
+    <a href="{{ 'reference/tools/' | url }}" class="md-button">tools reference</a>
+  </div>
+</div>
+{% endblock %}

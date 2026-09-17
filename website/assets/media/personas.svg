@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 240" role="img" aria-label="scout — one body, five faces">
+  <title>scout · personas</title>
+  <desc>Five personas share one rover body and one ROVER_ALL_TOOLS toolbelt: REPL, voice, thinker, telegram, dashboard.</desc>
+
+  <defs>
+    <linearGradient id="pBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"  stop-color="#1f2a1a"/>
+      <stop offset="100%" stop-color="#0d130a"/>
+    </linearGradient>
+    <linearGradient id="pTile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#e8e3c7" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#3d4a2a" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="pBus" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#ffce6b" stop-opacity="0"/>
+      <stop offset="20%"  stop-color="#a8d99a" stop-opacity="0.7"/>
+      <stop offset="50%"  stop-color="#ffce6b" stop-opacity="0.95"/>
+      <stop offset="80%"  stop-color="#a8d99a" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#ffce6b" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="pSoft"><feGaussianBlur stdDeviation="0.7"/></filter>
+  </defs>
+
+  <rect width="1200" height="240" fill="url(#pBg)"/>
+
+  <!-- 5 persona tiles -->
+  <g font-family="ui-monospace,SFMono-Regular,Menlo,monospace" fill="#f3f1de">
+    <!-- REPL -->
+    <g transform="translate(40,30)" filter="url(#pSoft)">
+      <rect width="208" height="146" rx="14" fill="url(#pTile)" stroke="#a8d99a" stroke-opacity="0.55"/>
+      <text x="20" y="42" font-size="30">🧠</text>
+      <text x="66" y="46" font-size="14" font-weight="700" fill="#a8d99a">REPL</text>
+      <text x="20" y="76" font-size="11" fill="#cfd6b0">agent.py</text>
+      <text x="20" y="98" font-size="11">type → scout</text>
+      <text x="20" y="116" font-size="11">watches itself drive</text>
+      <text x="20" y="134" font-size="10" fill="#a8b07a">21 events · 54 frames</text>
+    </g>
+    <!-- VOICE -->
+    <g transform="translate(268,30)" filter="url(#pSoft)">
+      <rect width="208" height="146" rx="14" fill="url(#pTile)" stroke="#ffce6b" stroke-opacity="0.55"/>
+      <text x="20" y="42" font-size="30">🎙</text>
+      <text x="66" y="46" font-size="14" font-weight="700" fill="#ffce6b">VOICE</text>
+      <text x="20" y="76" font-size="11" fill="#cfd6b0">voice_agent.py</text>
+      <text x="20" y="98" font-size="11">bidi · mic ↔ speakers</text>
+      <text x="20" y="116" font-size="11">openai · sonic · gemini</text>
+      <text x="20" y="134" font-size="10" fill="#a8b07a">PCM16 over /ws/voice</text>
+    </g>
+    <!-- THINKER -->
+    <g transform="translate(496,30)" filter="url(#pSoft)">
+      <rect width="208" height="146" rx="14" fill="url(#pTile)" stroke="#ff7a59" stroke-opacity="0.55"/>
+      <text x="20" y="42" font-size="30">🐢</text>
+      <text x="66" y="46" font-size="14" font-weight="700" fill="#ff7a59">THINKER</text>
+      <text x="20" y="76" font-size="11" fill="#cfd6b0">thinker_loop.py</text>
+      <text x="20" y="98" font-size="11">slow autonomous loop</text>
+      <text x="20" y="116" font-size="11">reflect · wander · map</text>
+      <text x="20" y="134" font-size="10" fill="#a8b07a">1,270 events · 140 frames</text>
+    </g>
+    <!-- TELEGRAM -->
+    <g transform="translate(724,30)" filter="url(#pSoft)">
+      <rect width="208" height="146" rx="14" fill="url(#pTile)" stroke="#b88aff" stroke-opacity="0.55"/>
+      <text x="20" y="42" font-size="30">📱</text>
+      <text x="66" y="46" font-size="14" font-weight="700" fill="#b88aff">TELEGRAM</text>
+      <text x="20" y="76" font-size="11" fill="#cfd6b0">telegram_listener.py</text>
+      <text x="20" y="98" font-size="11">drive from your pocket</text>
+      <text x="20" y="116" font-size="11">photos · video · chat</text>
+      <text x="20" y="134" font-size="10" fill="#a8b07a">116 events · 37 frames</text>
+    </g>
+    <!-- DASHBOARD -->
+    <g transform="translate(952,30)" filter="url(#pSoft)">
+      <rect width="208" height="146" rx="14" fill="url(#pTile)" stroke="#7ed5ff" stroke-opacity="0.55"/>
+      <text x="20" y="42" font-size="30">🖥️</text>
+      <text x="66" y="46" font-size="14" font-weight="700" fill="#7ed5ff">DASHBOARD</text>
+      <text x="20" y="76" font-size="11" fill="#cfd6b0">dashboard_server.py</text>
+      <text x="20" y="98" font-size="11">PWA · iOS home-screen</text>
+      <text x="20" y="116" font-size="11">WASD · 🕹 · 🎙 · passkey</text>
+      <text x="20" y="134" font-size="10" fill="#a8b07a">scout.cagatay.my (live)</text>
+    </g>
+  </g>
+
+  <!-- shared toolbelt bus -->
+  <g transform="translate(0,190)">
+    <rect x="60" y="0" width="1080" height="3" rx="2" fill="url(#pBus)"/>
+    <g font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="11" fill="#a8b07a" text-anchor="middle">
+      <text x="600" y="22">↑ all share <tspan fill="#ffce6b" font-weight="700">ROVER_ALL_TOOLS</tspan> · the same body · the same memory · the same ECoT log</text>
+    </g>
+    <!-- pulse dot -->
+    <circle cx="60" cy="1.5" r="3.5" fill="#ffce6b">
+      <animate attributeName="cx" values="60;1140;60" dur="6s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;1;1;0" dur="6s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>

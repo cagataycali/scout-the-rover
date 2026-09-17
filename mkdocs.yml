@@ -1,0 +1,176 @@
+site_name: scout
+site_url: https://cagataycali.github.io/scout-the-rover
+site_description: "scout · a Strands agent that sees, thinks, talks and drives a FrodoBots Earth Rover Mini+ — and records every drive as a LeRobot dataset."
+site_author: Cagatay Cali
+repo_url: https://github.com/cagataycali/scout-the-rover
+repo_name: cagataycali/scout-the-rover
+edit_uri: edit/main/website/
+copyright: "🛞 scout · sees · thinks · drives · remembers"
+
+# docs/ is the DASHBOARD's static frontend (served by dashboard_server.py) — the site lives in website/
+docs_dir: website
+site_dir: site
+
+exclude_docs: |
+  assets/models/LICENSE.md
+  *.bak
+  hooks/
+
+extra_css:
+  - stylesheets/scout.css?v=1
+
+extra_javascript:
+  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
+  - javascripts/mermaid-init.js?v=1
+  - path: https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js
+    type: module
+  - javascripts/scout-3d.js?v=1
+
+nav:
+  - Home: index.md
+  - Start:
+      - What you need: start/hardware.md
+      - Install on the brain (Thor): start/install.md
+      - Docker compose (slim): start/docker.md
+      - Configuration (.env): start/config.md
+      - First drive: start/first-drive.md
+  - Showcase:
+      - Dashboard: dashboard.md
+      - Personas: personas.md
+      - Voice: voice.md
+      - Perception: perception.md
+      - Datasets & replay: datasets.md
+      - Fleet (tiny.technology MCP): fleet.md
+  - Guide:
+      - Architecture: guide/architecture.md
+      - Auth (passkeys + TLS): guide/auth.md
+      - Operations runbook: guide/operations.md
+      - Troubleshooting: guide/troubleshooting.md
+      - Hardware & 3D files: hardware.md
+      - Contributing: guide/contributing.md
+  - Reference:
+      - Tools:
+          - reference/tools/index.md
+          - Motion: reference/tools/rover_motion.md
+          - Navigate: reference/tools/rover_navigate.md
+          - Async motion: reference/tools/rover_async.md
+          - Camera: reference/tools/rover_camera.md
+          - State & speaker: reference/tools/rover_state.md
+          - Pose: reference/tools/rover_pose.md
+          - Room map: reference/tools/room_map.md
+          - Record & controller: reference/tools/rover_record.md
+          - Memory: reference/tools/rover_memory.md
+          - Telegram: reference/tools/telegram.md
+          - Voice bridge: reference/tools/voice_bridge.md
+          - Fleet (use_device): reference/tools/tiny_mcp.md
+      - Dashboard API: reference/api.md
+      - Environment variables: reference/env.md
+      - Dataset schema: reference/schema.md
+  - Field notes:
+      - notes/index.md
+      - 2026-06-20 · first autonomous nav: notes/2026-06-20-first-autonomous-nav.md
+      - 2026-06-20 · perception test: notes/2026-06-20-autonomous-perception-test.md
+      - Locate Anything (idea): notes/locate-anything.md
+
+theme:
+  name: material
+  custom_dir: website/overrides
+  icon:
+    repo: fontawesome/brands/github
+  logo: assets/scout-mark.svg
+  favicon: assets/favicon.svg
+  font:
+    text: Inter
+    code: JetBrains Mono
+  palette:
+    - scheme: slate
+      primary: black
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: switch to light
+    - scheme: default
+      primary: white
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: switch to dark
+  features:
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.footer
+    - navigation.sections
+    - navigation.indexes
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+    - search.suggest
+    - search.highlight
+    - search.share
+    - announce.dismiss
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format ''
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.betterem
+  - pymdownx.mark
+  - pymdownx.keys
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - def_list
+  - footnotes
+  - toc:
+      permalink: "·"
+
+plugins:
+  - search:
+      lang: en
+  - redirects:
+      redirect_maps:
+        AUTH.md: guide/auth.md
+        PERSONAS.md: personas.md
+        DATASETS.md: datasets.md
+        MCP.md: fleet.md
+        LOCATEANYTHING.md: notes/locate-anything.md
+
+hooks:
+  - website/hooks/gen.py   # regenerates reference/tools/*, reference/env.md, reference/api.md from the code
+
+extra:
+  generator: false
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/cagataycali/scout-the-rover
+    - icon: fontawesome/solid/database
+      link: https://huggingface.co/datasets/cagataydev/scout-earthrover-ecot
+    - icon: fontawesome/brands/x-twitter
+      link: https://twitter.com/cagataycali
+  status:
+    new: recently added
+    deprecated: deprecated

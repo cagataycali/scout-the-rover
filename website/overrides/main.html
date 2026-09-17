@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block site_meta %}
+  {{ super() }}
+  <meta name="description" content="scout — a Strands agent that sees, thinks, talks and drives a FrodoBots Earth Rover Mini+ from a Jetson AGX Thor. Voice, Telegram, dashboard, a slow thinker — one shared brain, every drive recorded as a LeRobot dataset." />
+  <meta property="og:title" content="{{ page.title }} · scout" />
+  <meta property="og:description" content="Strands agent driving a FrodoBots Earth Rover Mini+ — vision · language · action, passkey-gated cockpit, LeRobot datasets, fleet-aware via tiny.technology." />
+  <meta property="og:image" content="{{ 'assets/scout-mark.svg' | url }}" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="theme-color" content="#faf9f7" />
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#050b12" />
+{% endblock %}
