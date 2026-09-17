@@ -1,0 +1,14 @@
+[Unit]
+Description=Scout persona supervisor (host-side, unix socket, fixed allow-list)
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/cagatay/scout-the-rover
+ExecStart=/usr/bin/python3 /home/cagatay/scout-the-rover/deploy/scout_supervisor.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
