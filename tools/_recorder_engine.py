@@ -330,6 +330,23 @@ def _lerobot_video_kwargs() -> dict:
         return {}
     return {"rgb_encoder": RGBEncoderConfig(vcodec=_os.getenv("SCOUT_VCODEC", "h264"))}
 
+def _unreadable_parquets(root: Path) -> list:
+    """Parquet files under meta/episodes/ and data/ whose footer is missing
+    (writer never finalized). Cheap: reads only the file tail."""
+    out = []
+    try:
+        import pyarrow.parquet as _pq
+    except Exception:
+        return out
+    for pattern in ("meta/episodes/*/*.parquet", "data/*/*.parquet"):
+        for f in sorted(Path(root).glob(pattern)):
+            try:
+                _pq.read_metadata(f)
+            except Exception:
+                out.append(f)
+    return out
+
+
 @dataclass
 class _ActionState:
     """Last-commanded action — written by motion tools or controller, read by recorder."""
@@ -436,6 +453,20 @@ class RecorderEngine:
         self._capture_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="rover-cap")
         self._has_rear = False  # detected on first frame
         self._image_shape: Optional[tuple] = None  # (H, W, 3)
+        # ── Episode sealing (lerobot ≥0.6) ─────────────────────────────────
+        # lerobot 0.6 streams BOTH data/*.parquet and meta/episodes/*.parquet
+        # through pyarrow ParquetWriters whose FOOTER is only written by
+        # LeRobotDataset.finalize(). Until then the files are unreadable
+        # ("Parquet magic bytes not found in footer") — the replay UI showed
+        # the same clip for every episode, and a killed process left the
+        # whole dataset unresumable. With sealing ON we finalize() right after
+        # every save_episode() and lazily resume() on the next start_episode(),
+        # so the dataset on disk is ALWAYS loadable between episodes. Cost:
+        # one parquet + one mp4 per episode instead of packed files (v3
+        # readers glob, so this is a valid layout). SCOUT_SEAL_EPISODES=0
+        # restores the packed single-writer behaviour.
+        self.seal_episodes: bool = os.environ.get("SCOUT_SEAL_EPISODES", "1").strip().lower() not in ("0", "false", "no", "off")
+        self._sealed_episodes: int = 0
 
         self._thread: Optional[threading.Thread] = None
         self._stop_evt = threading.Event()
@@ -472,6 +503,9 @@ class RecorderEngine:
                 "total_episodes": self._episode_idx,
                 "dataset_root": str(self._dataset_root()),
                 "has_rear_camera": self._has_rear,
+                "seal_episodes": self.seal_episodes,
+                "dataset_open": self._dataset is not None,
+                "sealed_episodes": self._sealed_episodes,
                 "audio_capture": self.capture_audio and self._audio_started,
                 "last_error": self._last_error,
             }
@@ -522,10 +556,13 @@ class RecorderEngine:
         if self._recording_evt.is_set():
             return {"ok": False, "error": "episode already in progress"}
 
-        # First episode → probe rear cam, init dataset
+        # First episode → probe rear cam. After a sealed episode the dataset
+        # object is None but the probes are cached (the on-disk schema is fixed
+        # once created, so re-probing could only produce a mismatch).
         if self._dataset is None:
-            self._has_rear = self._probe_rear_camera()
-            self._image_shape = self._probe_image_shape()
+            if self._image_shape is None:
+                self._has_rear = self._probe_rear_camera()
+                self._image_shape = self._probe_image_shape()
             if self._image_shape is None:
                 return {"ok": False, "error": (
                     "could not probe a usable camera frame. SDK is responding "
@@ -541,6 +578,10 @@ class RecorderEngine:
                 self._last_error = f"dataset init failed: {e}"
                 logger.exception("dataset init")
                 return {"ok": False, "error": self._last_error}
+            # A process killed mid-episode leaves images/<key>/episode-NNNNNN/
+            # staging PNGs for the episode index we are about to reuse; lerobot
+            # would encode those stale frames into the new episode's video.
+            self._cleanup_orphan_staging()
 
         # Start mic capture (best-effort)
         if self.capture_audio:
@@ -619,6 +660,11 @@ class RecorderEngine:
             logger.exception("save_episode")
             return {"ok": False, "error": self._last_error}
 
+        # ── Seal: write parquet footers NOW so the dataset is readable between
+        #    episodes (see seal_episodes in __init__). ──
+        if self.seal_episodes:
+            self._seal_dataset()
+
         # ── ECoT: stamp episode stop time for export reconciliation ──
         try:
             from .reasoning_log import anchor_episode as _anchor
@@ -648,6 +694,55 @@ class RecorderEngine:
             "audio_path": str(wav_path) if wav_path else None,
             "dataset_root": str(self._dataset_root()),
         }
+
+    # Sealing helpers
+
+    def _seal_dataset(self) -> bool:
+        """finalize() the open LeRobotDataset so every parquet footer lands on
+        disk, then drop the handle; the next start_episode() resume()s.
+
+        Returns True when the dataset was sealed (or was already closed)."""
+        ds = self._dataset
+        if ds is None:
+            return True
+        try:
+            ds.finalize()
+        except Exception as e:  # keep recording possible; surface the error
+            self._last_error = f"dataset finalize failed: {e}"
+            logger.warning(self._last_error)
+            return False
+        finally:
+            self._dataset = None
+        self._sealed_episodes += 1
+        logger.info(f"episode {self._episode_idx} sealed (dataset finalized, resume on next start)")
+        return True
+
+    def _cleanup_orphan_staging(self) -> None:
+        """Remove images/<key>/episode-NNNNNN/ staging dirs for episodes that
+        were never saved (index >= total_episodes). lerobot's temporary PNG
+        frames survive a SIGKILL and would otherwise be swept into the next
+        episode's mp4."""
+        ds = self._dataset
+        if ds is None:
+            return
+        try:
+            total = int(ds.meta.total_episodes)
+            root = self._dataset_root()
+            import re as _re
+            import shutil as _sh
+            for key_dir in (root / "images").glob("*"):
+                for ep_dir in key_dir.glob("episode-*"):
+                    m = _re.match(r"episode-(\d+)$", ep_dir.name)
+                    if not m:
+                        continue
+                    if int(m.group(1)) >= total:
+                        n = sum(1 for _ in ep_dir.glob("*.png"))
+                        _sh.rmtree(ep_dir, ignore_errors=True)
+                        logger.warning(
+                            f"removed orphan staging frames {ep_dir.relative_to(root)} "
+                            f"({n} png, episode never saved)")
+        except Exception as e:
+            logger.debug(f"orphan staging cleanup skipped: {e}")
 
     # Dataset init
 
@@ -722,6 +817,16 @@ class RecorderEngine:
                 raise
             except Exception as e:
                 logger.warning(f"could not validate on-disk schema: {e}")
+
+            # Pre-flight: lerobot's load_episodes() dies with an opaque
+            # "Parquet magic bytes not found in footer" when a previous
+            # process was killed before finalize(). Name the file and the fix.
+            bad = _unreadable_parquets(root)
+            if bad:
+                raise RuntimeError(
+                    "dataset has unfinalized parquet file(s) (footer missing): "
+                    + ", ".join(str(b.relative_to(root)) for b in bad)
+                    + f". Run: python -m tools.repair_episode_index {root}")
 
             logger.info(f"resuming dataset at {root}")
             ds = LeRobotDataset.resume(
