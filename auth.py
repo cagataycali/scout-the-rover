@@ -246,9 +246,16 @@ def _pop_challenge(cid: str, kind: str) -> Dict[str, Any]:
 
 
 # JWT sessions
-def issue_token(subject: str, name: str = "") -> str:
+def issue_token(subject: str, name: str = "", ttl: Optional[int] = None) -> str:
+    """Mint an HS256 session JWT.
+
+    `ttl` overrides SCOUT_AUTH_TOKEN_TTL — used for long-lived *service* tokens
+    (e.g. the tiny iOS body panel, sub="tiny-ios-body"). Same secret, same
+    verify_token(): revoke by rotating jwt_secret in the auth store.
+    """
     now = int(time.time())
-    payload = {"sub": subject, "name": name, "iat": now, "exp": now + TOKEN_TTL}
+    life = TOKEN_TTL if ttl is None else max(1, int(ttl))
+    payload = {"sub": subject, "name": name, "iat": now, "exp": now + life}
     return jwt.encode(payload, _jwt_secret(), algorithm="HS256")
 
 
