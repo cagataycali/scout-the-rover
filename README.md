@@ -416,6 +416,7 @@ All live-configurable from the ⚙️ drawer — no file edits, no restart:
 | **Manual drive** | ⌨️ WASD + 🕹️ glass joystick → `/control`; e-stop |
 | **Voice** | 🎙️ browser mic → bidi model → speakers (PCM16 over `/ws/voice`) |
 | **Cameras** | front/rear PiP swap, lamp, snapshot |
+| **Personas** | 🎭 topbar pills + sheet: turn 🎙 rover-voice · 🧠 thinker · 🕹 thinker drive · ✈ telegram · ⏺ rec ON/OFF live — containers via a host-side unix-socket supervisor (no docker socket in the container), flags via . See [docs/PERSONAS.md](docs/PERSONAS.md) |
 
 ```
  browser  ──WS /ws/chat──►  dashboard_server  ──►  agent.py (scout)
