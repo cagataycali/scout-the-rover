@@ -418,6 +418,7 @@ All live-configurable from the ⚙️ drawer — no file edits, no restart:
 | **Cameras** | front/rear PiP swap, lamp, snapshot |
 | **Fleet** | 🛰 tiny.technology MCP inside the agents — `use_device` (fomo / q-the-brain / the Mac / Reachy), shared memory, mesh; OFF unless `TINY_MCP=1`, allow-listed, self-invoke refused, depth-1 cap via gated `POST /api/chat`. See [docs/MCP.md](docs/MCP.md) |
 | **Personas** | 🎭 topbar pills + sheet: turn 🎙 rover-voice · 🧠 thinker · 🕹 thinker drive · ✈ telegram · ⏺ rec ON/OFF live — containers via a host-side unix-socket supervisor (no docker socket in the container), flags via `.memory/personas.json`. See [docs/PERSONAS.md](docs/PERSONAS.md) |
+| **Datasets** | 🎞 LeRobot v3, one per day per persona; episodes are **sealed** after every save (lerobot 0.6 only writes parquet footers on finalize) so the replay always has per-episode video windows; `tools/repair_episode_index.py` rebuilds a footerless index; `/api/replay` reports `index_state`. See [docs/DATASETS.md](docs/DATASETS.md) |
 
 ```
  browser  ──WS /ws/chat──►  dashboard_server  ──►  agent.py (scout)
