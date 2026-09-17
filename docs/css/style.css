@@ -626,6 +626,8 @@ img.rvideo { object-fit: contain; }
 .ept-meta { font-size: 11px; color: var(--txt-dim); margin-top: 3px; }
 .badge.b-live { background: rgba(255,90,110,.15); color: #ff5a6e; border: 1px solid rgba(255,90,110,.3);
                 padding: 1px 6px; border-radius: 6px; font-size: 10px; margin-left: 6px; }
+.badge.b-warn { background: rgba(255,206,28,.12); color: #ffce1c; border: 1px solid rgba(255,206,28,.35);
+  font-size: 10px; padding: 1px 6px; border-radius: 6px; margin-left: 4px; cursor: help; }
 .evfilter { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 8px; align-items: center; }
 .evchip { font-size: 10px; padding: 3px 8px; border-radius: 999px; cursor: pointer;
           background: rgba(255,255,255,.05); color: var(--txt-dim);

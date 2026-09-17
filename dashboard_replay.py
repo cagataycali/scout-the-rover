@@ -77,12 +77,34 @@ def _list_datasets() -> List[Dict[str, Any]]:
             "has_reasoning": (d / "reasoning" / "events.sqlite").exists(),
             "has_video": bool(glob.glob(str(d / "videos" / "*" / "*" / "*.mp4"))),
             "live": (total_eps == 0 and live_eps > 0),
+            # footer check only (reads the parquet tail) — "unfinalized" means
+            # the recorder never finalize()d and windows will be approximate.
+            "index_state": _index_state_quick(d),
             "mtime": d.stat().st_mtime,
         })
     out.sort(key=lambda x: x.get("mtime", 0), reverse=True)
     for o in out:
         o.pop("mtime", None)
     return out
+
+
+def _index_state_quick(d: Path) -> str:
+    files = sorted(glob.glob(str(d / "meta" / "episodes" / "*" / "*.parquet")))
+    if not files:
+        return "none"
+    try:
+        import pyarrow.parquet as pq
+    except Exception:
+        return "unknown"
+    bad = 0
+    for f in files:
+        try:
+            pq.read_metadata(f)
+        except Exception:
+            bad += 1
+    if bad == 0:
+        return "finalized"
+    return "unfinalized" if bad == len(files) else "partial"
 
 
 def _dataset_dir(ds_id: str) -> Path:
@@ -99,42 +121,180 @@ def _dataset_dir(ds_id: str) -> Path:
     return p
 
 
-def _episodes_meta(ds_id: str) -> List[Dict[str, Any]]:
-    """Per-episode timeline rows from meta/episodes/*.parquet.
+def _video_file_tag(chunk_idx, file_idx) -> str:
+    try:
+        return f"chunk-{int(chunk_idx):03d}/file-{int(file_idx):03d}"
+    except Exception:
+        return "chunk-000/file-000"
 
-    If the parquet is unreadable (dataset still LIVE — footer not flushed),
-    fall back to episode_anchors in the reasoning DB so the UI can still list
-    episodes + tasks (video scrubbing just won't have precise from/to until the
-    agent stops and footers flush).
+
+def _read_episode_index(d: Path) -> Dict[str, Any]:
+    """Read every meta/episodes/*/*.parquet that HAS a footer.
+
+    Returns {"rows": [...], "files": n, "unreadable": [rel paths]}. lerobot ≥0.6
+    streams these files and only writes the footer on finalize(); a recorder
+    killed mid-episode (or one that never sealed) leaves footerless files that
+    pyarrow rejects — those are reported, never silently treated as empty.
     """
     import pandas as pd
-    d = _dataset_dir(ds_id)
     files = sorted(glob.glob(str(d / "meta" / "episodes" / "*" / "*.parquet")))
-    if files:
+    frames, unreadable = [], []
+    for f in files:
         try:
-            frames = [pd.read_parquet(f) for f in files]
-            df = pd.concat(frames).sort_values("episode_index")
-            FK_FROM = "videos/observation.images.front/from_timestamp"
-            FK_TO = "videos/observation.images.front/to_timestamp"
-            rows = []
-            for _, r in df.iterrows():
-                tasks = r.get("tasks")
-                if hasattr(tasks, "tolist"):
-                    tasks = tasks.tolist()
-                rows.append({
-                    "episode_index": int(r["episode_index"]),
-                    "tasks": tasks if isinstance(tasks, list) else [str(tasks)],
-                    "length": int(r["length"]),
-                    "from_index": int(r["dataset_from_index"]),
-                    "to_index": int(r["dataset_to_index"]),
-                    "video_from": float(r.get(FK_FROM, 0.0) or 0.0),
-                    "video_to": float(r.get(FK_TO, 0.0) or 0.0),
-                    "live": False,
-                })
-            return rows
+            frames.append(pd.read_parquet(f))
         except Exception:
-            pass  # live/unfinalized → fall through to reasoning-anchor fallback
+            unreadable.append(str(Path(f).relative_to(d)))
+    rows: List[Dict[str, Any]] = []
+    if frames:
+        df = pd.concat(frames).sort_values("episode_index")
+        FK_FROM = "videos/observation.images.front/from_timestamp"
+        FK_TO = "videos/observation.images.front/to_timestamp"
+        for _, r in df.iterrows():
+            tasks = r.get("tasks")
+            if hasattr(tasks, "tolist"):
+                tasks = tasks.tolist()
+            video_files = {}
+            for view in ("front", "rear"):
+                k = f"videos/observation.images.{view}/file_index"
+                if k in r and r.get(k) is not None:
+                    video_files[view] = _video_file_tag(
+                        r.get(f"videos/observation.images.{view}/chunk_index", 0), r.get(k))
+            rows.append({
+                "episode_index": int(r["episode_index"]),
+                "tasks": tasks if isinstance(tasks, list) else [str(tasks)],
+                "length": int(r["length"]),
+                "from_index": int(r["dataset_from_index"]),
+                "to_index": int(r["dataset_to_index"]),
+                "video_from": float(r.get(FK_FROM, 0.0) or 0.0),
+                "video_to": float(r.get(FK_TO, 0.0) or 0.0),
+                "video_files": video_files,
+                "index": "finalized",
+                "window_source": "episodes-parquet",
+                "live": False,
+            })
+    return {"rows": rows, "files": len(files), "unreadable": unreadable}
 
+
+def _windows_from_data(d: Path, fps: float, skip: set) -> List[Dict[str, Any]]:
+    """Fallback per-episode windows from data/*/*.parquet (frame rows grouped by
+    episode_index) when the episodes index is unreadable but the data files are.
+    Windows assume the packed-mp4 layout (episodes concatenated in order), so
+    they are tagged approx; they are still DISTINCT per episode, which is what
+    the scrubber needs."""
+    import pandas as pd
+    files = sorted(glob.glob(str(d / "data" / "*" / "*.parquet")))
+    parts = []
+    for f in files:
+        try:
+            parts.append(pd.read_parquet(f, columns=["episode_index", "frame_index", "timestamp"]))
+        except Exception:
+            continue  # footerless data file → nothing to derive from it
+    if not parts:
+        return []
+    df = pd.concat(parts)
+    rows = []
+    cursor = 0.0
+    frame_cursor = 0
+    for ei, g in df.groupby("episode_index", sort=True):
+        ei = int(ei)
+        n = int(len(g))
+        dur = n / fps if fps > 0 else float(g["timestamp"].max() - g["timestamp"].min())
+        if ei in skip:
+            cursor += dur
+            frame_cursor += n
+            continue
+        rows.append({
+            "episode_index": ei,
+            "tasks": [],
+            "length": n,
+            "from_index": frame_cursor,
+            "to_index": frame_cursor + n,
+            "video_from": round(cursor, 6),
+            "video_to": round(cursor + dur, 6),
+            "video_files": {},
+            "index": "unfinalized",
+            "window_source": "data-parquet",
+            "approx": True,
+            "live": False,
+        })
+        cursor += dur
+        frame_cursor += n
+    return rows
+
+
+def _episode_index(ds_id: str) -> Dict[str, Any]:
+    """Episode rows + index health for one dataset.
+
+    index_state: finalized | partial | unfinalized | none
+      finalized   – every episodes parquet readable
+      partial     – some readable; the rest reconstructed (data parquet / anchors)
+      unfinalized – no readable index; rows come from fallbacks (windows approx)
+      none        – no index files at all (live image-sequence dataset)
+    """
+    d = _dataset_dir(ds_id)
+    idx = _read_episode_index(d)
+    rows = idx["rows"]
+    known = {r["episode_index"] for r in rows}
+    total = None
+    fps = 10.0
+    try:
+        info = json.loads((d / "meta" / "info.json").read_text())
+        total = int(info.get("total_episodes", 0))
+        fps = float(info.get("fps", fps))
+    except Exception:
+        pass
+    missing = [i for i in range(total or 0) if i not in known]
+    fallback_source = None
+    if idx["unreadable"] or missing:
+        extra = _windows_from_data(d, fps, known)
+        if extra:
+            fallback_source = "data-parquet"
+        else:
+            extra = [r for r in _episodes_from_anchors(ds_id) if r["episode_index"] not in known]
+            for r in extra:
+                r["index"] = "unfinalized"
+                r["window_source"] = "reasoning-anchors"
+                r["approx"] = True
+                r["window_known"] = False
+            if extra:
+                fallback_source = "reasoning-anchors"
+        rows = rows + extra
+    elif not idx["files"]:
+        rows = _episodes_from_anchors(ds_id)
+        for r in rows:
+            r.setdefault("index", "none")
+    rows.sort(key=lambda r: r["episode_index"])
+    if idx["files"] and not idx["unreadable"] and not missing:
+        state = "finalized"
+    elif idx["rows"]:
+        state = "partial"
+    elif idx["files"]:
+        state = "unfinalized"
+    else:
+        state = "none"
+    out = {
+        "rows": rows,
+        "index_state": state,
+        "unreadable_files": idx["unreadable"],
+        "fallback_source": fallback_source,
+    }
+    if idx["unreadable"]:
+        out["warning"] = ("episode index unfinalized: " + ", ".join(idx["unreadable"])
+                          + " has no parquet footer (recorder killed before finalize). "
+                          "Per-episode video windows are approximate. Fix: "
+                          "python -m tools.repair_episode_index <dataset_root>")
+    return out
+
+
+def _episodes_meta(ds_id: str) -> List[Dict[str, Any]]:
+    """Per-episode timeline rows (see _episode_index for the health fields)."""
+    return _episode_index(ds_id)["rows"]
+
+
+def _episodes_from_anchors(ds_id: str) -> List[Dict[str, Any]]:
+    """Coarse episode list from episode_anchors in the reasoning DB (readable
+    even while parquet is being written) + PNG staging frames for LIVE episodes."""
+    d = _dataset_dir(ds_id)
     # Fallback: reconstruct a coarse episode list from episode_anchors (the
     # reasoning DB is readable even while the parquet is being written).
     db = d / "reasoning" / "events.sqlite"
@@ -211,9 +371,21 @@ def _episodes_meta(ds_id: str) -> List[Dict[str, Any]]:
     return rows
 
 
-def _video_path(ds_id: str, view: str) -> Path:
+_VIDEO_FILE_RE = re.compile(r"^chunk-\d{3}/file-\d{3}$")
+
+
+def _video_path(ds_id: str, view: str, file: Optional[str] = None) -> Path:
+    """mp4 for a view. `file` = "chunk-000/file-002" selects a packed file
+    (sealed datasets have one mp4 per episode); default = first file."""
     d = _dataset_dir(ds_id)
     key = f"observation.images.{view}"
+    if file:
+        if not _VIDEO_FILE_RE.match(file):
+            raise HTTPException(400, "file must look like chunk-000/file-000")
+        p = d / "videos" / key / f"{file}.mp4"
+        if not p.exists():
+            raise HTTPException(404, f"no {view} video {file} in {ds_id}")
+        return p
     cands = sorted(glob.glob(str(d / "videos" / key / "*" / "*.mp4")))
     if not cands:
         raise HTTPException(404, f"no {view} video in {ds_id}")
@@ -437,8 +609,14 @@ def mount(app: FastAPI) -> None:
     async def replay_episodes(ds_id: str):
         info = json.loads((_dataset_dir(ds_id) / "meta" / "info.json").read_text())
         fps = float(info.get("fps", 4))
-        eps = _episodes_meta(ds_id)
-        return JSONResponse({"dataset": ds_id, "fps": fps, "episodes": eps})
+        idx = _episode_index(ds_id)
+        return JSONResponse({
+            "dataset": ds_id, "fps": fps, "episodes": idx["rows"],
+            "index_state": idx["index_state"],
+            "unreadable_files": idx["unreadable_files"],
+            "fallback_source": idx["fallback_source"],
+            "warning": idx.get("warning"),
+        })
 
     @app.get("/api/replay/{ds_id}/episode/{episode_index}")
     async def replay_episode(ds_id: str, episode_index: int):
@@ -487,10 +665,10 @@ def mount(app: FastAPI) -> None:
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/replay/{ds_id}/video/{view}")
-    async def replay_video(ds_id: str, view: str):
+    async def replay_video(ds_id: str, view: str, file: Optional[str] = None):
         if view not in ("front", "rear"):
             raise HTTPException(400, "view must be front|rear")
-        path = _video_path(ds_id, view)
+        path = _video_path(ds_id, view, file)
         # FileResponse supports HTTP range requests → browser <video> can seek.
         return FileResponse(str(path), media_type="video/mp4")
 

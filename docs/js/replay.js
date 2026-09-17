@@ -43,12 +43,24 @@ async function init() {
     if (d.has_reasoning) tags.push("🧠");
     if (d.live) tags.push("🔴live");
     else if (d.has_video) tags.push("🎬");
+    if (d.index_state === "unfinalized" || d.index_state === "partial") tags.push("⚠︎index");
     o.textContent = `${d.id}  (${eps} ep${tags.length ? " · " + tags.join(" ") : ""})`;
     sel.appendChild(o);
   });
   sel.onchange = () => loadDataset(sel.value);
   if (datasets && datasets.length) loadDataset(datasets[0].id);
   else showEmptyState("no datasets found", "Drive scout (or record an episode) and they'll appear here.");
+}
+
+function renderDsInfo(r) {
+  const el = $("dsInfo"); if (!el) return;
+  const n = EPISODES.length;
+  let html = `${FPS} fps · ${n} episode${n === 1 ? "" : "s"}`;
+  if (r && (r.index_state === "unfinalized" || r.index_state === "partial")) {
+    html += ` <span class="badge b-warn" title="${escapeHtml(r.warning || "episode index parquet has no footer")}">⚠︎ index ${r.index_state}` +
+            (r.fallback_source ? ` · windows from ${escapeHtml(r.fallback_source)}` : "") + `</span>`;
+  }
+  el.innerHTML = html;
 }
 
 function showEmptyState(title, sub) {
@@ -62,7 +74,7 @@ async function loadDataset(id) {
   DS = id;
   const r = await api(`/api/replay/${id}/episodes`);
   FPS = r.fps || 4; EPISODES = r.episodes || [];
-  $("dsInfo").textContent = `${FPS} fps · ${EPISODES.length} episode${EPISODES.length === 1 ? "" : "s"}`;
+  renderDsInfo(r);
   renderEpList();
   if (EPISODES.length) selectEpisode(EPISODES[0].episode_index);
   else {
@@ -89,9 +101,21 @@ function setModeUI() {
   }
 }
 
-function setVideoSrc() {
-  vid.src = _withTok(`/api/replay/${DS}/video/${VIEW}`);
+let VIDEO_SRC_KEY = null;  // `${VIEW}|${file}` currently loaded in <video>
+function setVideoSrc(force) {
+  // Sealed datasets store one mp4 per episode → pick the episode's file.
+  const file = (EP && EP.video_files && EP.video_files[VIEW]) || "";
+  const key = `${DS}|${VIEW}|${file}`;
+  if (!force && key === VIDEO_SRC_KEY) return;
+  VIDEO_SRC_KEY = key;
+  vid.src = _withTok(`/api/replay/${DS}/video/${VIEW}` + (file ? `?file=${encodeURIComponent(file)}` : ""));
   vid.load();
+}
+
+function indexBadge(e, long) {
+  if (!e || e.index !== "unfinalized") return "";
+  const t = long ? "⚠︎ index unfinalized · window approximate" : "⚠︎";
+  return ` <span class="badge b-warn" title="episode index parquet has no footer (recorder was killed before finalize). Video window is approximate — run tools/repair_episode_index.py">${t}</span>`;
 }
 
 function renderEpList() {
@@ -110,7 +134,7 @@ function renderEpList() {
       thumb = `<img class="epthumb" loading="lazy" src="${url}" alt="" />`;
     }
     div.innerHTML = `${thumb}<div class="epbody">` +
-                    `<div><b>ep ${e.episode_index}</b> · ${nf} · ${dur}s${live}</div>` +
+                    `<div><b>ep ${e.episode_index}</b> · ${nf} · ${dur}s${live}${indexBadge(e)}</div>` +
                     `<div class="et">${(e.tasks || []).join(" / ") || "<i>untasked</i>"}</div></div>`;
     div.onclick = () => selectEpisode(e.episode_index);
     el.appendChild(div);
@@ -343,7 +367,7 @@ function renderEpTitle() {
   const nf = EP.length != null ? `${EP.length} frames` : "";
   const dur = (EP.video_to - EP.video_from).toFixed(1);
   el.innerHTML = `<div class="ept-task">${escapeHtml(task)}</div>` +
-    `<div class="ept-meta">ep ${EP.episode_index} · ${nf} · ${dur}s ${live}</div>`;
+    `<div class="ept-meta">ep ${EP.episode_index} · ${nf} · ${dur}s ${live}${indexBadge(EP, true)}</div>`;
 }
 
 // ── reasoning type filter ──
@@ -673,7 +697,7 @@ if ($("btnRefresh")) $("btnRefresh").onclick = async () => {
   try {
     const r = await api(`/api/replay/${DS}/episodes`);
     FPS = r.fps || 4; EPISODES = r.episodes || [];
-    $("dsInfo").textContent = `${FPS} fps · ${EPISODES.length} episode${EPISODES.length === 1 ? "" : "s"}`;
+    renderDsInfo(r);
     renderEpList();
     const sel = (keep != null && EPISODES.some(e => e.episode_index === keep)) ? keep
               : (EPISODES.length ? EPISODES[0].episode_index : null);
