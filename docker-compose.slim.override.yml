@@ -1,5 +1,16 @@
 # Adds media + yolo to the slim stack (parity with GPU compose, CPU-only).
 services:
+  # Dashboard reaches the HOST-side persona supervisor over a unix socket only
+  # (deploy/scout_supervisor.py, user unit scout-supervisor). No docker socket
+  # is ever mounted into a public container — see docs/PERSONAS.md.
+  dashboard:
+    volumes:
+      - ./datasets:/app/datasets
+      - ./.memory:/app/.memory
+      - ./captures:/app/captures
+      - ./screenshots:/app/screenshots
+      - scout-auth-slim:/app/.scout_auth_vol
+      - ./.supervisor:/run/scout-supervisor
   media:
     image: scout:slim
     container_name: scout-slim-media
