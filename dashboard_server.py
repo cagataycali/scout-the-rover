@@ -704,7 +704,8 @@ async def ws_voice(ws: WebSocket):
     # Browser-backed audio IO adapters
     class _BrowserInput:
         async def start(self, agent):
-            self._cfg = agent.model.config["audio"]
+            from voice_agent import _audio_cfg
+            self._cfg = _audio_cfg(agent.model, "input")
         async def stop(self):
             pass
         async def __call__(self):
@@ -713,12 +714,13 @@ async def ws_voice(ws: WebSocket):
                 audio=base64.b64encode(data).decode(),
                 channels=self._cfg.get("channels", 1),
                 format=self._cfg.get("format", "pcm"),
-                sample_rate=self._cfg.get("input_rate", 16000),
+                sample_rate=self._cfg.get("sample_rate", 16000),
             )
 
     class _BrowserOutput:
         async def start(self, agent):
-            self._rate = agent.model.config["audio"]["output_rate"]
+            from voice_agent import _audio_cfg
+            self._rate = _audio_cfg(agent.model, "output")["sample_rate"]
             await ws.send_text(json.dumps({"type": "voice_meta", "rate": self._rate}))
         async def stop(self):
             pass

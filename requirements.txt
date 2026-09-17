@@ -1,4 +1,4 @@
-strands-agents>=1.0.0
+strands-agents>=1.56.0,<2  # voice_agent/_voice_patch target the 1.56 bidi API (OpenAIRealtimeModel)
 requests>=2.32
 python-dotenv>=1.0
 # Dataset recording (LeRobot v3 format)

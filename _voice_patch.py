@@ -22,7 +22,14 @@ import base64
 import json
 import logging
 
-from strands.experimental.bidi.models import openai_realtime as _oair
+# strands-agents >= 1.56 renamed the module/class (openai_realtime.BidiOpenAIRealtimeModel
+# → openai.OpenAIRealtimeModel). Support both so the patch survives either pin.
+try:
+    from strands.experimental.bidi.models import openai as _oair
+    _Model = _oair.OpenAIRealtimeModel
+except (ImportError, AttributeError):  # pragma: no cover - old strands
+    from strands.experimental.bidi.models import openai_realtime as _oair
+    _Model = _Model
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +75,7 @@ async def _patched_send_tool_result(self, tool_result) -> None:
     await self._send_event({"type": "response.create"})
 
 
-_oair.BidiOpenAIRealtimeModel._send_tool_result = _patched_send_tool_result
+_Model._send_tool_result = _patched_send_tool_result
 # logger.info("🩹 patched BidiOpenAIRealtimeModel._send_tool_result for image tool results")
 # print("🩹 voice patch applied: rover image tool results now supported on OpenAI Realtime")
 
@@ -81,7 +88,7 @@ _oair.BidiOpenAIRealtimeModel._send_tool_result = _patched_send_tool_result
 # truncated → "Expecting value: line 1 column N". But OpenAI's `.done` event
 # ALREADY includes the complete, authoritative `arguments` string. We wrap
 # `_convert_openai_event` to trust that field instead of the delta buffer.
-_orig_convert = _oair.BidiOpenAIRealtimeModel._convert_openai_event
+_orig_convert = _Model._convert_openai_event
 
 
 def _patched_convert_openai_event(self, openai_event):
@@ -98,7 +105,7 @@ def _patched_convert_openai_event(self, openai_event):
     return _orig_convert(self, openai_event)
 
 
-_oair.BidiOpenAIRealtimeModel._convert_openai_event = _patched_convert_openai_event
+_Model._convert_openai_event = _patched_convert_openai_event
 # logger.info("🩹 patched _convert_openai_event: use authoritative tool-call arguments from .done")
 # print("🩹 voice patch applied: tool-call argument parsing hardened")
 
@@ -112,8 +119,8 @@ _oair.BidiOpenAIRealtimeModel._convert_openai_event = _patched_convert_openai_ev
 #   • when the active response finishes, flush exactly one deferred create
 import asyncio as _asyncio
 
-_orig_send_event = _oair.BidiOpenAIRealtimeModel._send_event
-_prev_convert = _oair.BidiOpenAIRealtimeModel._convert_openai_event
+_orig_send_event = _Model._send_event
+_prev_convert = _Model._convert_openai_event
 
 
 async def _guarded_send_event(self, event):
@@ -149,8 +156,8 @@ def _lifecycle_convert(self, openai_event):
     return _prev_convert(self, openai_event)
 
 
-_oair.BidiOpenAIRealtimeModel._send_event = _guarded_send_event
-_oair.BidiOpenAIRealtimeModel._convert_openai_event = _lifecycle_convert
+_Model._send_event = _guarded_send_event
+_Model._convert_openai_event = _lifecycle_convert
 # logger.info("🩹 patched response lifecycle: guard against double response.create")
 # print("🩹 voice patch applied: response.create conflict guard active")
 
@@ -168,7 +175,7 @@ try:
 except Exception:  # pragma: no cover
     _repair_json = None
 
-_chain_convert = _oair.BidiOpenAIRealtimeModel._convert_openai_event
+_chain_convert = _Model._convert_openai_event
 
 
 def _argrepair_convert(self, openai_event):
@@ -199,5 +206,5 @@ def _argrepair_convert(self, openai_event):
     return _chain_convert(self, openai_event)
 
 
-_oair.BidiOpenAIRealtimeModel._convert_openai_event = _argrepair_convert
+_Model._convert_openai_event = _argrepair_convert
 # print("🩹 voice patch applied: malformed tool-call JSON auto-repair active")

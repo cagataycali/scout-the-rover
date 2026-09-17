@@ -137,40 +137,51 @@ through movement — and saves its few words for the moments that deserve them.
 
 
 def _build_bidi_model(provider: str, voice: Optional[str] = None):
+    """Build a bidi model for `provider` on strands-agents >= 1.56.
+
+    1.56 renamed the classes and flattened the constructors:
+      BidiOpenAIRealtimeModel(provider_config=…, client_config=…) → OpenAIRealtimeModel(api_key=, voice=, model_id=)
+      BidiNovaSonicModel                                          → BedrockNovaSonicModel(region=, voice=)
+      BidiGeminiLiveModel                                         → GoogleGeminiLiveModel(client_args=, voice=)
+    """
     provider = provider.lower()
     v = voice or _DEFAULT_VOICES.get(provider)
 
     if provider in ("nova_sonic", "novasonic", "nova"):
-        from strands.experimental.bidi.models import BidiNovaSonicModel
-        region = os.getenv("AWS_REGION", "us-east-1")
-        cfg = {"audio": {"voice": v}} if v else None
-        return BidiNovaSonicModel(provider_config=cfg, client_config={"region": region})
+        from strands.experimental.bidi.models.bedrock import BedrockNovaSonicModel
+        kwargs = {"region": os.getenv("AWS_REGION", "us-east-1")}
+        if v:
+            kwargs["voice"] = v
+        return BedrockNovaSonicModel(**kwargs)
 
     if provider in ("openai", "openai_realtime"):
-        from strands.experimental.bidi.models import BidiOpenAIRealtimeModel
+        from strands.experimental.bidi.models.openai import OpenAIRealtimeModel
         kwargs = {}
         if v:
-            kwargs["provider_config"] = {"audio": {"voice": v}}
-        model_id = os.getenv("VOICE_MODEL")
-        if model_id:
-            kwargs["model_id"] = model_id
-        api_key = os.getenv("OPENAI_API_KEY")
-        if api_key:
-            kwargs["client_config"] = {"api_key": api_key}
-        return BidiOpenAIRealtimeModel(**kwargs)
+            kwargs["voice"] = v
+        if os.getenv("VOICE_MODEL"):
+            kwargs["model_id"] = os.getenv("VOICE_MODEL")
+        if os.getenv("OPENAI_API_KEY"):
+            kwargs["api_key"] = os.getenv("OPENAI_API_KEY")
+        return OpenAIRealtimeModel(**kwargs)
 
     if provider in ("gemini", "gemini_live"):
-        from strands.experimental.bidi.models import BidiGeminiLiveModel
+        from strands.experimental.bidi.models.google import GoogleGeminiLiveModel
         kwargs = {}
         if v:
-            kwargs["provider_config"] = {"audio": {"voice": v}}
+            kwargs["voice"] = v
         api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
         if api_key:
-            kwargs["client_config"] = {"api_key": api_key}
-        return BidiGeminiLiveModel(**kwargs)
+            kwargs["client_args"] = {"api_key": api_key}
+        return GoogleGeminiLiveModel(**kwargs)
 
     raise ValueError(f"unknown voice provider: {provider}")
 
+
+
+def _audio_cfg(model, direction: str) -> dict:
+    """{'sample_rate','channels','format'} for 'input'|'output' (strands >= 1.56 get_audio_config())."""
+    return dict(model.get_audio_config()[direction])
 
 
 # Rover audio backend: mic IN (poll /rover-mic) + speaker OUT (push PCM)
@@ -280,9 +291,9 @@ class _RoverAudioInput:
         self._running = False
 
     async def start(self, agent) -> None:
-        self._rate = agent.model.config["audio"]["input_rate"]
-        self._channels = agent.model.config["audio"]["channels"]
-        self._format = agent.model.config["audio"]["format"]
+        self._rate = _audio_cfg(agent.model, "input")["sample_rate"]
+        self._channels = _audio_cfg(agent.model, "input")["channels"]
+        self._format = _audio_cfg(agent.model, "input")["format"]
         await asyncio.to_thread(
             requests.post, f"{self._sdk}/rover-mic/start",
             json={"rate": self._rate}, timeout=30,
@@ -359,7 +370,7 @@ class _RoverAudioOutput:
         self._rate = 24000
 
     async def start(self, agent) -> None:
-        self._rate = agent.model.config["audio"]["output_rate"]
+        self._rate = _audio_cfg(agent.model, "output")["sample_rate"]
         await asyncio.to_thread(
             requests.post, f"{self._sdk}/rover-speaker/start",
             json={"rate": self._rate}, timeout=30,
