@@ -416,6 +416,7 @@ All live-configurable from the ⚙️ drawer — no file edits, no restart:
 | **Manual drive** | ⌨️ WASD + 🕹️ glass joystick → `/control`; e-stop |
 | **Voice** | 🎙️ browser mic → bidi model → speakers (PCM16 over `/ws/voice`) |
 | **Cameras** | front/rear PiP swap, lamp, snapshot |
+| **Fleet** | 🛰 tiny.technology MCP inside the agents — `use_device` (fomo / q-the-brain / the Mac / Reachy), shared memory, mesh; OFF unless `TINY_MCP=1`, allow-listed, self-invoke refused, depth-1 cap via gated `POST /api/chat`. See [docs/MCP.md](docs/MCP.md) |
 | **Personas** | 🎭 topbar pills + sheet: turn 🎙 rover-voice · 🧠 thinker · 🕹 thinker drive · ✈ telegram · ⏺ rec ON/OFF live — containers via a host-side unix-socket supervisor (no docker socket in the container), flags via `.memory/personas.json`. See [docs/PERSONAS.md](docs/PERSONAS.md) |
 
 ```
