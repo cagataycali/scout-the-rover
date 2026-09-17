@@ -2,7 +2,7 @@ strands-agents>=1.56.0,<2  # voice_agent/_voice_patch target the 1.56 bidi API (
 requests>=2.32
 python-dotenv>=1.0
 # Dataset recording (LeRobot v3 format)
-lerobot>=0.5.1
+lerobot[dataset]>=0.5.1   # 0.6 moved HF datasets into the extra; plain lerobot = recording silently off
 numpy>=1.24
 opencv-python>=4.8
 # PS4 / generic SDL2 joystick teleop
