@@ -298,7 +298,7 @@ def _build_agent():
     import agent as scout_agent  # noqa
     import importlib
     importlib.reload(scout_agent)  # pick up any env changes
-    a = scout_agent.build_agent()
+    a = scout_agent.build_agent(persona="dashboard")
     return a, scout_agent
 
 
@@ -375,6 +375,7 @@ def _run_turn_blocking(prompt: str, q: "queue.Queue[dict]") -> None:
                     f"{_memory.recall_block()}\n"
                     f"{scout_agent.live_state_block()}\n"
                     f"{_get_active_prompt()}"
+                    + __import__("tools.tiny_mcp", fromlist=["x"]).prompt_block("dashboard")
                 )
             except Exception:
                 pass
@@ -515,6 +516,44 @@ async def _sdk_control(linear: float, angular: float, duration: float):
         await asyncio.to_thread(
             _sdk_post, "/control", {"command": {"linear": 0, "angular": 0}}
         )
+
+
+@app.post("/api/chat")
+async def api_chat(request: Request):
+    """tiny.technology endpoint-device chat (use_device invoke → here). Gated like everything else.
+
+    A FLEET turn: the agent is built with fleet=True → no fleet tools (depth cap = 1, docs/MCP.md),
+    fresh agent (no shared conversation with the dashboard chat), one turn, ≤ 90 s.
+    """
+    _auth_guard_http(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    prompt = str((body or {}).get("prompt") or (body or {}).get("text") or "").strip()[:600]
+    if not prompt:
+        raise HTTPException(422, "prompt required")
+
+    def _turn() -> str:
+        import agent as scout_agent
+        import memory as _memory
+        with _agent_busy:
+            a = scout_agent.build_agent(persona="fleet", fleet=True)
+            a.system_prompt = (
+                f"{_memory.recall_block()}\n{scout_agent.live_state_block()}\n{_get_active_prompt()}\n\n"
+                "This request was relayed from another of the owner\x27s devices via tiny.technology; "
+                "answer it directly and briefly (1-3 sentences)."
+            )
+            return str(a(prompt))
+
+    t0 = time.time()
+    try:
+        reply = await asyncio.wait_for(asyncio.to_thread(_turn), timeout=90)
+    except asyncio.TimeoutError:
+        return JSONResponse({"ok": False, "error": "agent turn timed out (90 s)"}, status_code=504)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)[:300]}, status_code=500)
+    return {"ok": True, "result": reply, "reply": reply, "seconds": round(time.time() - t0, 1)}
 
 
 @app.get("/api/telemetry")

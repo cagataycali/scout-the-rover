@@ -583,10 +583,11 @@ def build_voice_agent(
     from strands.experimental.bidi.tools import stop_conversation
 
     model = _build_bidi_model(provider, voice)
+    from tools import tiny_mcp  # fleet bridge — voice is OPT-IN (TINY_MCP_PERSONAS must list voice)
     agent = BidiAgent(
         model=model,
-        tools=[*ROVER_ALL_TOOLS, stop_conversation],
-        system_prompt=VOICE_PROMPT,
+        tools=[*ROVER_ALL_TOOLS, stop_conversation, *tiny_mcp.get_tools("voice")],
+        system_prompt=VOICE_PROMPT + tiny_mcp.prompt_block("voice"),
     )
     if audio == "rover":
         audio_io = RoverAudioIO()

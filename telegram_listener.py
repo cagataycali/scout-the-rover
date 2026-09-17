@@ -42,6 +42,7 @@ from agent import (
     _auto_recorder,
 )
 from tools import ROVER_ALL_TOOLS
+from tools import tiny_mcp  # fleet bridge (tiny.technology MCP) — OFF unless TINY_MCP=1
 from tools.rover_state import rover_state as _rover_state_tool, rover_speak as _rover_speak_tool
 from tools.rover_camera import rover_see as _rover_see_tool
 from tools.rover_motion import rover_lamp as _rover_lamp_tool, rover_stop as _rover_stop_tool
@@ -86,8 +87,8 @@ Telegram-specific behavior:
 
 def build_agent_for_chat(chat_id: str, username: str) -> Agent:
     return Agent(
-        tools=ROVER_ALL_TOOLS,
-        system_prompt=_telegram_prompt(chat_id, username),
+        tools=[*ROVER_ALL_TOOLS, *tiny_mcp.get_tools("telegram")],
+        system_prompt=_telegram_prompt(chat_id, username) + tiny_mcp.prompt_block("telegram"),
         hooks=[ReasoningLoggerHook(agent_id="telegram")],
     )
 

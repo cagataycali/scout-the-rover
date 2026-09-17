@@ -52,6 +52,7 @@ from tools.telegram import format_history_for_prompt
 import memory as _memory
 from tools.voice_bridge import voice_say as _voice_say, push as _voice_push
 from tools.reasoning_log import ReasoningLoggerHook
+from tools import tiny_mcp  # fleet bridge — thinker is OPT-IN (TINY_MCP_PERSONAS must list thinker)
 from agent import _AutoRecorder  # reuse the same episode-wrap logic
 
 
@@ -187,8 +188,8 @@ ACT. Cagatay wants to see scout being scout — not a parked sensor.
 
 def _build_agent() -> Agent:
     return Agent(
-        tools=[*ROVER_ALL_TOOLS, _voice_say],
-        system_prompt=_thinker_prompt(),
+        tools=[*ROVER_ALL_TOOLS, _voice_say, *tiny_mcp.get_tools("thinker")],
+        system_prompt=_thinker_prompt() + tiny_mcp.prompt_block("thinker"),
         hooks=[ReasoningLoggerHook(agent_id="thinker")],
     )
 

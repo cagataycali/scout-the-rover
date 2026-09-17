@@ -30,6 +30,7 @@ from tools.reasoning_log import ReasoningLoggerHook
 from tools.dataset_index import dataset_index_block
 from tools.room_map import build_map_block as _room_map_block
 from tools.rover_pose import pose_block as _pose_block
+from tools import tiny_mcp  # fleet bridge (tiny.technology MCP) — OFF unless TINY_MCP=1, see docs/MCP.md
 
 BASE_PROMPT = """You are scout, a friendly Earth Rover Mini sidewalk robot.
 
@@ -393,8 +394,10 @@ when richer reasoning, planning, or generation is genuinely needed.
 """
 
 
-def build_agent(extra_tools: Optional[list] = None) -> Agent:
-    tools = [*ROVER_ALL_TOOLS, _voice_say, *(extra_tools or [])]
+def build_agent(extra_tools: Optional[list] = None, *, persona: str = "main", fleet: bool = False) -> Agent:
+    """persona/fleet steer only the optional tiny.technology fleet tools (tools/tiny_mcp.py);
+    fleet=True = this turn ARRIVED from another device → no fleet tools (depth cap)."""
+    tools = [*ROVER_ALL_TOOLS, _voice_say, *(extra_tools or []), *tiny_mcp.get_tools(persona, fleet=fleet)]
     try:
         from tools import COSMOS_AVAILABLE as _COSMOS
     except Exception:
@@ -406,9 +409,9 @@ def build_agent(extra_tools: Optional[list] = None) -> Agent:
         tools=tools,
         system_prompt=(
             f"{_memory.recall_block()}\n{live_state_block()}\n{spatial_block()}\n{perception_block()}\n{BASE_PROMPT}\n"
-            f"{cosmos_block}\n{dataset_block}"
+            f"{cosmos_block}\n{dataset_block}{tiny_mcp.prompt_block(persona, fleet=fleet)}"
         ),
-        hooks=[ReasoningLoggerHook(agent_id="main")],
+        hooks=[ReasoningLoggerHook(agent_id="main" if persona == "main" else persona)],
     )
 
 
