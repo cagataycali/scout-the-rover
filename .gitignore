@@ -41,3 +41,6 @@ g1-work/
 neon-the-g1/
 docs/SHOWCASE-RUNBOOK.md
 .supervisor/
+
+# tiny.technology fleet bridge credential (docs/MCP.md)
+.tiny-mcp.env

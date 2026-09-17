@@ -84,6 +84,23 @@ RUN python3 -m pip install --upgrade pip \
     && (pip uninstall -y opencv-python opencv-python-headless 2>/dev/null || true) \
     && pip install --no-cache-dir --force-reinstall "opencv-python-headless==4.11.0.86" "numpy>=2.0"
 
+# --- tiny.technology fleet bridge (docs/MCP.md) -------------------------------
+# Node 22 LTS from the official tarball (arm64/amd64) + tiny-tech pinned and vendored
+# under /opt/tiny-mcp so the MCP server starts with NO network fetch at runtime.
+# tools/tiny_mcp.py autodetects /opt/tiny-mcp/node_modules/tiny-tech + node on PATH.
+# Nothing is enabled unless TINY_MCP=1 (+ TINY_TOKEN) reaches the container env.
+ARG NODE_VERSION=22.14.0
+ARG TINY_TECH_VERSION=0.13.9
+RUN set -eux; ARCH="$(dpkg --print-architecture)"; case "$ARCH" in arm64) NARCH=arm64;; amd64) NARCH=x64;; *) echo "no node for $ARCH" && exit 1;; esac; \
+    curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NARCH}.tar.xz" \
+      | tar -xJ -C /usr/local --strip-components=1 --exclude=*/include --exclude=*/share --exclude=*/CHANGELOG.md --exclude=*/README.md; \
+    node -v; \
+    mkdir -p /opt/tiny-mcp && cd /opt/tiny-mcp && npm init -y >/dev/null \
+    && npm i "tiny-tech@${TINY_TECH_VERSION}" --omit=dev --no-audit --no-fund --loglevel=error \
+    && npm cache clean --force && rm -rf /root/.npm; \
+    pip install --no-cache-dir "mcp>=1.10"; \
+    du -sh /usr/local/lib/node_modules /opt/tiny-mcp
+
 # --- App source --------------------------------------------------------------
 COPY . /app/
 

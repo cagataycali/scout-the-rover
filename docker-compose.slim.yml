@@ -51,6 +51,10 @@ services:
   dashboard:
     <<: *scout-slim
     container_name: scout-slim-dashboard
+    env_file:                       # .tiny-mcp.env = tiny.technology fleet bridge (docs/MCP.md), agent services only
+      - .env
+      - path: .tiny-mcp.env
+        required: false
     command: ["dashboard"]
     environment:
       SCOUT_ENABLE_COSMOS: "0"
@@ -78,6 +82,10 @@ services:
   telegram:
     <<: *scout-slim
     container_name: scout-slim-telegram
+    env_file:                       # .tiny-mcp.env = tiny.technology fleet bridge (docs/MCP.md), agent services only
+      - .env
+      - path: .tiny-mcp.env
+        required: false
     command: ["telegram"]
     environment:
       SCOUT_ENABLE_COSMOS: "0"
@@ -91,6 +99,10 @@ services:
   thinker:
     <<: *scout-slim
     container_name: scout-slim-thinker
+    env_file:                       # .tiny-mcp.env = tiny.technology fleet bridge (docs/MCP.md), agent services only
+      - .env
+      - path: .tiny-mcp.env
+        required: false
     command: ["thinker"]
     environment:
       SCOUT_ENABLE_COSMOS: "0"
@@ -105,6 +117,10 @@ services:
   voice:
     <<: *scout-slim
     container_name: scout-slim-voice
+    env_file:                       # .tiny-mcp.env = tiny.technology fleet bridge (docs/MCP.md), agent services only
+      - .env
+      - path: .tiny-mcp.env
+        required: false
     command: ["voice"]
     environment:
       SCOUT_ENABLE_COSMOS: "0"
