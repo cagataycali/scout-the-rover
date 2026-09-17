@@ -309,6 +309,27 @@ def _telemetry_to_state_vec(d: Dict[str, Any]) -> np.ndarray:
 # Engine
 
 
+
+def _lerobot_video_kwargs() -> dict:
+    """Video-codec kwargs for LeRobotDataset.create()/resume(), by lerobot version.
+
+    lerobot <=0.5 took ``vcodec="auto"``; 0.6 replaced it with
+    ``rgb_encoder=RGBEncoderConfig(...)`` and rejects ``vcodec`` outright
+    (TypeError → recorder never created a dataset). Default codec is h264 so
+    the dashboard replay plays in every browser; override with SCOUT_VCODEC
+    (h264 | hevc | libsvtav1 | auto).
+    """
+    import inspect as _inspect
+    import os as _os
+    from lerobot.datasets.lerobot_dataset import LeRobotDataset as _LRD
+    if "vcodec" in _inspect.signature(_LRD.create).parameters:
+        return {"vcodec": "auto"}
+    try:
+        from lerobot.configs.video import RGBEncoderConfig
+    except Exception:  # very old/new layout — let lerobot pick its default
+        return {}
+    return {"rgb_encoder": RGBEncoderConfig(vcodec=_os.getenv("SCOUT_VCODEC", "h264"))}
+
 @dataclass
 class _ActionState:
     """Last-commanded action — written by motion tools or controller, read by recorder."""
@@ -706,7 +727,7 @@ class RecorderEngine:
             ds = LeRobotDataset.resume(
                 repo_id=self.repo_id,
                 root=root,
-                vcodec="auto",
+                **_lerobot_video_kwargs(),
             )
             self._episode_idx = ds.meta.total_episodes
             return ds
@@ -737,7 +758,7 @@ class RecorderEngine:
             root=root,
             robot_type="earthrover_mini_plus",
             use_videos=True,
-            vcodec="auto",
+            **_lerobot_video_kwargs(),
             # Flush episode metadata on every save_episode (default 10 buffers
             # in memory until shutdown, which means a Ctrl+C'd session loses
             # meta/episodes/ entirely and the dataset can't be reloaded).
