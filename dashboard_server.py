@@ -675,6 +675,56 @@ async def api_health():
     return {"ok": True, "sdk": sdk_ok, "sdk_url": _resolve_sdk_url()}
 
 
+# 🎭 Personas — who is running (voice / thinker / telegram containers via the
+# host-side supervisor over a unix socket; thinker_drive / recording via the
+# shared flag file). All under /api/* → sealed by the auth middleware.
+import personas as _personas  # noqa: E402
+
+
+def _actor(request: Request) -> str:
+    try:
+        who = scout_auth.require_auth(request) if (_AUTH_OK and scout_auth and scout_auth.AUTH_ENABLED) else {}
+        return str((who or {}).get("sub") or (who or {}).get("name") or "dashboard")[:64]
+    except Exception:
+        return "dashboard"
+
+
+@app.get("/api/personas")
+async def api_personas(request: Request):
+    _auth_guard_http(request)
+    return await asyncio.to_thread(_personas.snapshot, _actor(request))
+
+
+@app.post("/api/personas/{name}")
+async def api_personas_toggle(name: str, request: Request):
+    """Body: {"action": "start"|"stop"|"on"|"off"}. Container personas answer
+    starting/stopping immediately — poll GET /api/personas for the settled state."""
+    _auth_guard_http(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        return await asyncio.to_thread(_personas.toggle, name, body.get("action"), _actor(request))
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except _personas.SupervisorError as e:
+        raise HTTPException(503, f"supervisor: {e}")
+
+
+@app.get("/api/personas/{name}/logs")
+async def api_personas_logs(name: str, request: Request, n: int = 20):
+    _auth_guard_http(request)
+    if name not in _personas.CONTAINER_PERSONAS:
+        raise HTTPException(404, f"no logs for {name!r}")
+    try:
+        return await asyncio.to_thread(_personas.logs, name, n, _actor(request))
+    except _personas.SupervisorError as e:
+        raise HTTPException(503, f"supervisor: {e}")
+
+
 # Voice: browser mic ↔ bidi model (PCM16 over WS). Pragmatic streaming bridge.
 @app.websocket("/ws/voice")
 async def ws_voice(ws: WebSocket):
