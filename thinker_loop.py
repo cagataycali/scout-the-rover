@@ -58,7 +58,16 @@ from agent import _AutoRecorder  # reuse the same episode-wrap logic
 INTERVAL = int(os.getenv("THINKER_INTERVAL", "60"))
 DISABLED = os.getenv("THINKER_DISABLED", "").lower() in ("1", "true", "yes")
 TG_CHAT_ID = os.getenv("THINKER_TELEGRAM_CHAT_ID") or os.getenv("TELEGRAM_DEFAULT_CHAT_ID", "")
-ALLOW_DRIVE = os.getenv("SCOUT_THINKER_DRIVE", "1") not in ("0", "false", "no")
+os.environ.setdefault("SCOUT_PERSONA", "thinker")  # lets tools/_rover_common gate /control
+from tools.persona_flags import flag as _persona_flag  # noqa: E402
+
+
+def _drive_allowed() -> bool:
+    """Owner switch from the dashboard (.memory/personas.json); env SCOUT_THINKER_DRIVE is the fallback."""
+    return _persona_flag("thinker_drive")
+
+
+ALLOW_DRIVE = _drive_allowed()  # startup value, for the banner only
 
 
 def _now() -> str:
@@ -91,7 +100,7 @@ def _thinker_prompt() -> str:
         "  • You MUST do exploratory move via rover_navigate with a "
         "with complex ways"
         "the front camera shows a clear path."
-        if ALLOW_DRIVE else
+        if _drive_allowed() else
         "  • DO NOT move the rover this cycle (drive disabled — observe only)."
     )
 
@@ -192,7 +201,7 @@ _thinker_recorder = _AutoRecorder()
 def cycle(agent: Agent) -> None:
     """One reflection cycle — refresh prompt, clear messages, run."""
     t0 = time.time()
-    print(f"[{_now()}] 🧠 thinker cycle start", flush=True)
+    print(f"[{_now()}] 🧠 thinker cycle start (drive={'on' if _drive_allowed() else 'OFF'})", flush=True)
 
     # Clear conversation history each cycle — prompt re-injects context
     try:

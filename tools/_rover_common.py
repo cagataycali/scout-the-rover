@@ -39,8 +39,25 @@ def sdk_get(path: str, timeout: float = DEFAULT_TIMEOUT, **params) -> requests.R
     return requests.get(sdk_url(path), params=params or None, timeout=timeout)
 
 
+def _thinker_drive_blocked(path: str, body: Optional[Dict[str, Any]]) -> bool:
+    """True when this process is the thinker persona, owner turned its drive OFF,
+    and the request would move the rover (a zero/zero stop frame is always allowed)."""
+    if os.getenv("SCOUT_PERSONA") != "thinker" or path.rstrip("/") != "/control":
+        return False
+    cmd = (body or {}).get("command") or {}
+    if not cmd.get("linear") and not cmd.get("angular"):
+        return False
+    try:
+        from .persona_flags import flag
+        return not flag("thinker_drive")
+    except Exception:
+        return False
+
+
 def sdk_post(path: str, json: Optional[Dict[str, Any]] = None,
              timeout: float = DEFAULT_TIMEOUT) -> requests.Response:
+    if _thinker_drive_blocked(path, json):
+        raise RuntimeError("thinker drive is OFF (owner switch in dashboard → Personas); /control refused")
     return requests.post(sdk_url(path), json=json, timeout=timeout)
 
 

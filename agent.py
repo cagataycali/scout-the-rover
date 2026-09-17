@@ -285,6 +285,13 @@ class _AutoRecorder:
         if not self._enabled:
             return
         try:
+            from tools.persona_flags import flag as _persona_flag
+            if not _persona_flag("recording"):
+                self._owns_episode = False
+                return  # owner paused dataset recording from the dashboard
+        except Exception:
+            pass
+        try:
             eng = self._get_engine()
             # Don't double-record if a manual episode is already in progress.
             if eng.status().get("recording"):
