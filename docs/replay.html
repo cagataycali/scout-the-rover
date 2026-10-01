@@ -5,9 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="theme-color" content="#0a0a0f" />
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
 <title>scout · replay</title>
-<link rel="stylesheet" href="css/style.css?v=epidx1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" />
+<link rel="stylesheet" href="css/style.css?v=strands1" />
+<script src="js/brand.js?v=strands1"></script>
 </head>
 <body class="replay">
 <div class="aurora"></div>
@@ -18,14 +23,14 @@
 <!-- 🔐 auth gate -->
 <div class="auth-gate hidden" id="authGate">
   <div class="auth-card glass" id="authCard">
-    <div class="auth-logo">🛞🔐</div>
+    <div class="auth-logo" data-wordmark aria-label="Strands"></div>
     <h2 id="authTitle">scout</h2>
     <p class="auth-sub" id="authSub">authenticating…</p>
     <div class="auth-field hidden" id="authBootstrapWrap">
       <label>Bootstrap token</label>
       <input id="authBootstrap" type="password" placeholder="one-time setup secret" autocomplete="off" />
     </div>
-    <button class="auth-btn" id="authPrimary">✦ Continue</button>
+    <button class="auth-btn" id="authPrimary">Continue</button>
     <div class="auth-msg" id="authMsg"></div>
     <p class="auth-foot">Passwordless · your key never leaves this device.</p>
   </div>
@@ -34,7 +39,7 @@
 <!-- top status bar (matches index.html design) -->
 <header class="topbar glass">
   <div class="brand">
-    <span class="logo">🎞️</span>
+    <a class="logo" href="https://strandsagents.com/" title="Strands Agents" aria-label="Strands Agents" data-wordmark></a>
     <div class="brand-txt">
       <strong>scout</strong>
       <small>replay</small>
@@ -45,6 +50,10 @@
     <select id="dsSel"></select>
     <button class="rbtn rrefresh" id="btnRefresh" title="reload episodes (live datasets grow)">⟳</button>
     <span class="ds-info" id="dsInfo"></span>
+    <button class="icon-btn theme-btn" data-theme-toggle aria-label="theme" title="paper / dark">
+    <svg class="ico-moon" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-4.4 2.26 5.4 5.4 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
+    <svg class="ico-sun" viewBox="0 0 24 24"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0-5h0a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1zm0 18a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1zM2 12a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2H3a1 1 0 0 1-1-1zm17 0a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2h-2a1 1 0 0 1-1-1zM4.93 4.93a1 1 0 0 1 1.41 0l1.42 1.41a1 1 0 0 1-1.42 1.42L4.93 6.34a1 1 0 0 1 0-1.41zm11.31 11.31a1 1 0 0 1 1.42 0l1.41 1.42a1 1 0 0 1-1.41 1.41l-1.42-1.41a1 1 0 0 1 0-1.42zM4.93 19.07a1 1 0 0 1 0-1.41l1.41-1.42a1 1 0 0 1 1.42 1.42l-1.42 1.41a1 1 0 0 1-1.41 0zM16.24 7.76a1 1 0 0 1 0-1.42l1.42-1.41a1 1 0 0 1 1.41 1.41l-1.41 1.42a1 1 0 0 1-1.42 0z"/></svg>
+  </button>
   </div>
 </header>
 
@@ -84,7 +93,7 @@
         <div class="eplist" id="eplist"></div>
       </div>
       <div class="rpanel">
-        <h2>🔎 memory search</h2>
+        <h2>memory search</h2>
         <div style="display:flex;gap:6px">
           <input id="memQ" class="rinput" type="text" placeholder="find a chair, doorway, the G1…" />
           <button class="rbtn" id="memGo">go</button>
@@ -92,14 +101,14 @@
         <div class="events" id="memHits" style="max-height:34vh"></div>
       </div>
       <div class="rpanel">
-        <h2>🧠 reasoning timeline</h2>
+        <h2>reasoning timeline</h2>
         <div class="evfilter" id="evfilter"></div>
         <div class="events" id="events"></div>
       </div>
     </div>
   </div>
 </div>
-<script src="js/auth.js"></script>
-<script src="js/replay.js?v=epidx1"></script>
+<script src="js/auth.js?v=strands1"></script>
+<script src="js/replay.js?v=strands1"></script>
 </body>
 </html>

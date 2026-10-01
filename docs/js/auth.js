@@ -214,7 +214,7 @@ function httpsUpgradeUrl() {
   // 🚫 Hard guard: no WebAuthn here (insecure context) → explain, don't crash.
   if (!webauthnReady()) {
     const insecure = window.isSecureContext !== true;
-    titleEl.textContent = '🔒 HTTPS required';
+    titleEl.textContent = 'HTTPS required';
     if (insecure) {
       const host = location.hostname;
       subEl.innerHTML =
@@ -223,7 +223,7 @@ function httpsUpgradeUrl() {
         '<br>• <code>https://' + host + ':' + (location.port || '8080') + '</code>' +
         (host !== 'localhost' ? '<br>• or use <code>https://scout.local:' + (location.port || '8080') + '</code>' : '') +
         '<br><br>On iPhone/Android you may also need to trust the rover CA first — open <b>/trust</b>.';
-      subEl.style.color = '#ffb454';
+      subEl.style.color = 'var(--warn)';
       const link = httpsUpgradeUrl();
       btnPrimary.textContent = '↗ Reload over HTTPS';
       btnPrimary.disabled = false;
@@ -231,7 +231,7 @@ function httpsUpgradeUrl() {
       setMsg('navigator.credentials is unavailable on insecure origins.', true);
     } else {
       subEl.textContent = 'This browser does not support WebAuthn passkeys. Try a recent Chrome, Safari, Edge, or Firefox.';
-      subEl.style.color = '#ffb454';
+      subEl.style.color = 'var(--warn)';
       btnPrimary.disabled = true;
       btnPrimary.textContent = 'unsupported';
     }
@@ -243,7 +243,7 @@ function httpsUpgradeUrl() {
   // Surface a clear warning if WebAuthn can't run here (raw IP / insecure http).
   if (st.warning) {
     subEl.textContent = st.warning;
-    subEl.style.color = '#ffb454';
+    subEl.style.color = 'var(--warn)';
     if (st.secure_context === false || st.rpid_usable === false) {
       // still render the button but it will fail with a helpful server message
       setMsg('⚠️ ' + st.warning, true);
@@ -251,16 +251,16 @@ function httpsUpgradeUrl() {
   }
 
   if (mode === 'setup') {
-    titleEl.textContent = '🔐 Seal this rover';
+    titleEl.textContent = 'Seal this rover';
     subEl.textContent =
       'No admin passkey exists yet. Create one now — this becomes your device identity. ' +
       'Anyone without it will be locked out for good.';
-    btnPrimary.textContent = '✦ Create admin passkey';
+    btnPrimary.textContent = 'Create admin passkey';
     if (st.bootstrap_required) bootstrapWrap.classList.remove('hidden');
   } else {
-    titleEl.textContent = '🔐 Unlock scout';
+    titleEl.textContent = 'Unlock scout';
     subEl.textContent = 'Authenticate with your passkey (Touch ID / Face ID / security key).';
-    btnPrimary.textContent = '✦ Unlock with passkey';
+    btnPrimary.textContent = 'Unlock with passkey';
   }
 
   btnPrimary.addEventListener('click', async () => {

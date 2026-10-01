@@ -473,22 +473,28 @@ function highlightEventsByTime(t) {
 }
 
 // ── graph: linear/angular/speed over frames + reasoning markers ──
+function cssVar(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
 function drawGraph() {
   const c = $("graph"), ctx = c.getContext("2d");
+  const T = { ink: cssVar("--fg", "#fff"), muted: cssVar("--muted", "#999"), line: cssVar("--pill-border", "#3d3c3c"),
+              accent: cssVar("--accent", "#00cc60"), warn: cssVar("--warn", "#f6bc00") };
   const W = c.width = c.clientWidth * devicePixelRatio;
   const H = c.height = c.clientHeight * devicePixelRatio;
   ctx.clearRect(0, 0, W, H);
   const s = EPDATA.series, n = (s && s.frame_index ? s.frame_index.length : 0);
   const midY = H / 2;
-  ctx.strokeStyle = "rgba(255,255,255,.15)"; ctx.beginPath();
+  ctx.strokeStyle = T.line; ctx.beginPath();
   ctx.moveTo(0, midY); ctx.lineTo(W, midY); ctx.stroke();
 
   if (n) {
     const x = (i) => (i / (n - 1)) * W;
     const series = [
-      { key: "linear",  color: "#6cf", get: (i) => (s.action[i]||[0])[0] },
-      { key: "angular", color: "#fc6", get: (i) => (s.action[i]||[0,0])[1] },
-      { key: "speed",   color: "#9c6", get: (i) => (s.speed[i]||0) / 5 },
+      { key: "linear",  color: T.accent, get: (i) => (s.action[i]||[0])[0] },
+      { key: "angular", color: T.warn, get: (i) => (s.action[i]||[0,0])[1] },
+      { key: "speed",   color: T.ink, get: (i) => (s.speed[i]||0) / 5 },
     ];
     series.forEach(ser => {
       ctx.strokeStyle = ser.color; ctx.lineWidth = 1.5 * devicePixelRatio;
@@ -502,8 +508,8 @@ function drawGraph() {
     });
   } else {
     // no per-frame series (live) — annotate
-    ctx.fillStyle = "rgba(255,255,255,.35)";
-    ctx.font = `${12 * devicePixelRatio}px system-ui`;
+    ctx.fillStyle = T.muted;
+    ctx.font = `${11 * devicePixelRatio}px "JetBrains Mono", ui-monospace, monospace`;
     ctx.fillText("live episode · action/state graph appears after finalize", 8 * devicePixelRatio, midY - 6 * devicePixelRatio);
   }
 
@@ -535,19 +541,19 @@ function drawPlayhead(frac) {
   // restore base graph then draw the playhead line on top
   if (_graphBase) _graphCtx.putImageData(_graphBase, 0, 0);
   const x = _playheadFrac * _graphW;
-  _graphCtx.strokeStyle = "rgba(255,255,255,.85)";
+  _graphCtx.strokeStyle = cssVar("--fg", "#fff");
   _graphCtx.lineWidth = 1.5 * devicePixelRatio;
   _graphCtx.beginPath();
   _graphCtx.moveTo(x, 0);
   _graphCtx.lineTo(x, _graphH);
   _graphCtx.stroke();
   // little knob at top
-  _graphCtx.fillStyle = "#fff";
+  _graphCtx.fillStyle = cssVar("--fg", "#fff");
   _graphCtx.beginPath();
   _graphCtx.arc(x, 3 * devicePixelRatio, 3 * devicePixelRatio, 0, Math.PI * 2);
   _graphCtx.fill();
 }
-function colorFor(t){return {reasoning:"#7cf",tool_use:"#fc6",tool_result:"#9c6",user_input:"#c9f",assistant_end:"#aaa"}[t]||"#888";}
+function colorFor(t){return {reasoning:cssVar("--accent","#00cc60"),tool_use:cssVar("--warn","#f6bc00"),tool_result:cssVar("--fg","#fff"),user_input:cssVar("--fg-lighter","#999696"),assistant_end:cssVar("--pill-border","#3d3c3c")}[t]||cssVar("--muted","#888");}
 function escapeHtml(s){return (s||"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
 
 // ── playback control (video mode: clamp to episode window) ──
@@ -707,3 +713,7 @@ if ($("btnRefresh")) $("btnRefresh").onclick = async () => {
 
 window.scoutBoot = function() { if (window._rbooted) return; window._rbooted = true; init(); };
 if (!document.getElementById('authGate')) window.scoutBoot();
+
+// repaint the graph in the new scheme when the theme switch flips
+new MutationObserver(() => { try { if (typeof EPDATA !== "undefined" && EPDATA) drawGraph(); } catch (_) {} })
+  .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });

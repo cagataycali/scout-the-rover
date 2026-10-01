@@ -5,9 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="theme-color" content="#0a0a0f" />
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
 <title>scout · Earth Rover Mini</title>
-<link rel="stylesheet" href="css/style.css?v=357b80f-p3" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" />
+<link rel="stylesheet" href="css/style.css?v=strands1" />
+<script src="js/brand.js?v=strands1"></script>
 </head>
 <body>
 <div class="aurora"></div>
@@ -18,14 +23,14 @@
 <!-- 🔐 auth gate (WebAuthn passkey) -->
 <div class="auth-gate hidden" id="authGate">
   <div class="auth-card glass" id="authCard">
-    <div class="auth-logo">🛞🔐</div>
+    <div class="auth-logo" data-wordmark aria-label="Strands"></div>
     <h2 id="authTitle">scout</h2>
     <p class="auth-sub" id="authSub">authenticating…</p>
     <div class="auth-field hidden" id="authBootstrapWrap">
       <label>Bootstrap token</label>
       <input id="authBootstrap" type="password" placeholder="one-time setup secret" autocomplete="off" />
     </div>
-    <button class="auth-btn" id="authPrimary">✦ Continue</button>
+    <button class="auth-btn" id="authPrimary">Continue</button>
     <div class="auth-msg" id="authMsg"></div>
     <p class="auth-foot">Passwordless · your key never leaves this device.</p>
   </div>
@@ -35,7 +40,7 @@
 <!-- top status bar -->
 <header class="topbar glass">
   <div class="brand">
-    <span class="logo">🛞</span>
+    <a class="logo" href="https://strandsagents.com/" title="Strands Agents" aria-label="Strands Agents" data-wordmark></a>
     <div class="brand-txt">
       <strong>scout</strong>
       <small id="connState">connecting…</small>
@@ -47,6 +52,10 @@
     <div class="pill" id="pillGps"><span class="pi">📍</span><span class="pv" id="vGps">--</span></div>
   </div>
   <div class="persona-pills" id="personaPills" aria-label="personas"></div>
+  <button class="icon-btn theme-btn" data-theme-toggle aria-label="theme" title="paper / dark">
+    <svg class="ico-moon" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-4.4 2.26 5.4 5.4 0 0 1-3.14-9.8c-.44-.06-.9-.1-1.36-.1z"/></svg>
+    <svg class="ico-sun" viewBox="0 0 24 24"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0-5h0a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1zm0 18a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1zM2 12a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2H3a1 1 0 0 1-1-1zm17 0a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2h-2a1 1 0 0 1-1-1zM4.93 4.93a1 1 0 0 1 1.41 0l1.42 1.41a1 1 0 0 1-1.42 1.42L4.93 6.34a1 1 0 0 1 0-1.41zm11.31 11.31a1 1 0 0 1 1.42 0l1.41 1.42a1 1 0 0 1-1.41 1.41l-1.42-1.41a1 1 0 0 1 0-1.42zM4.93 19.07a1 1 0 0 1 0-1.41l1.41-1.42a1 1 0 0 1 1.42 1.42l-1.42 1.41a1 1 0 0 1-1.41 0zM16.24 7.76a1 1 0 0 1 0-1.42l1.42-1.41a1 1 0 0 1 1.41 1.41l-1.41 1.42a1 1 0 0 1-1.42 0z"/></svg>
+  </button>
   <a class="icon-btn" href="/replay" aria-label="replay" title="recordings replay" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">🎞️</a>
   <button class="icon-btn" id="btnLock" aria-label="lock" title="lock / sign out" onclick="window.ScoutAuth && window.ScoutAuth.logout()">🔒</button>
   <button class="icon-btn" id="btnSettings" aria-label="settings">⚙️</button>
@@ -107,7 +116,7 @@
 <div class="drawer-scrim hidden" id="drawerScrim"></div>
 <aside class="drawer glass hidden" id="drawer">
   <div class="drawer-head">
-    <h2>⚙️ Configuration</h2>
+    <h2>Configuration</h2>
     <button class="icon-btn" id="btnCloseDrawer">✕</button>
   </div>
 
@@ -151,14 +160,14 @@
     </div>
 
     <div class="persona-section" id="personaSection">
-      <h3>🎭 Personas</h3>
+      <h3>Personas</h3>
       <small class="env-hint">Who is running on Scout. Container personas are started/stopped by a host-side supervisor (no docker socket in this container); <b>thinker drive</b> and <b>rec</b> are live switches the processes poll every cycle.</small>
       <div id="personaList" class="persona-list"></div>
       <small class="env-hint" id="personaNote"></small>
     </div>
 
     <div class="passkey-section" id="passkeySection">
-      <h3>🔑 Admin passkeys</h3>
+      <h3>Admin passkeys</h3>
       <small class="env-hint">Devices allowed to drive this rover. Add a teammate's device, rename, or revoke. You can't remove the last one.</small>
       <div id="passkeyList" class="passkey-list"></div>
       <button class="chip" id="btnAddPasskey">+ enroll this device / a new passkey</button>
@@ -168,7 +177,7 @@
     </div>
 
     <div class="env-section">
-      <h3>🔐 Credentials & env</h3>
+      <h3>Credentials &amp; env</h3>
       <small class="env-hint">Masked values are hidden — leave them to keep, edit to change.</small>
       <div id="envList" class="env-list"></div>
       <div class="env-add">
@@ -179,7 +188,7 @@
     </div>
 
     <details class="schema-section">
-      <summary><h3 style="display:inline">📊 Dataset schema <small class="schema-tag">LeRobot v3</small></h3></summary>
+      <summary><h3 style="display:inline">Dataset schema <small class="schema-tag">LeRobot v3</small></h3></summary>
       <small class="env-hint">Every drive is recorded. <b>observation.state</b> is a 27-dim superset — the first 10 dims match the official <code>earthrover_mini_plus</code> layout (slice <code>[:10]</code> for standard policies), then scout appends richer live telemetry from the SDK <code>/data</code> burst arrays.</small>
 
       <div class="schema-group">
@@ -221,8 +230,8 @@
 
 <div class="toast-host" id="toastHost"></div>
 
-<script src="js/auth.js?v=357b80f-p3"></script>
-<script src="js/app.js?v=357b80f-p3"></script>
-<script src="js/personas.js?v=357b80f-p3"></script>
+<script src="js/auth.js?v=strands1"></script>
+<script src="js/app.js?v=strands1"></script>
+<script src="js/personas.js?v=strands1"></script>
 </body>
 </html>

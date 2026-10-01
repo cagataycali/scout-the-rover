@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import re
 import os
 import socket
 from pathlib import Path
@@ -73,30 +74,47 @@ def png_qr(data: str, path: Path) -> None:
     img.save(str(path))
 
 
+def wordmark_svg() -> str:
+    """The STRANDS wordmark (docs/media/branding/strands-wordmark.svg) for server-rendered pages;
+    empty string when the asset is missing so a page never fails on branding."""
+    try:
+        svg = (Path(__file__).resolve().parent / "docs" / "media" / "branding" / "strands-wordmark.svg").read_text()
+        svg = re.sub(r"<!--.*?-->", "", svg, flags=re.S)
+        return re.sub(r">\s+<", "><", svg).strip()
+    except Exception:
+        return ""
+
+
 HTML_CARD = """<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>scout · field setup</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
 <style>
   @media print {{ @page {{ margin: 12mm; }} .noprint {{ display:none; }} }}
-  body {{ font-family: system-ui,-apple-system,sans-serif; background:#0a0a0f; color:#e8e8f0;
-         display:flex; justify-content:center; padding:24px; }}
-  .card {{ width:440px; background:linear-gradient(160deg,#13131c,#0b0b12);
-          border:1px solid rgba(255,255,255,.12); border-radius:24px; padding:32px;
-          box-shadow:0 24px 70px rgba(0,0,0,.5); text-align:center; }}
-  h1 {{ font-size:26px; margin:0 0 2px; }} .sub {{ color:#9aa; font-size:13px; margin:0 0 20px; }}
-  .qr {{ background:#fff; border-radius:18px; padding:16px; display:inline-block; }}
+  :root {{ --bg:#000; --fg:#fff; --fg-light:#b6b6b6; --muted:#999696; --line:#28292a; --line-strong:#fff; --accent:#00cc60; --on-accent:#000; }}
+  @media (prefers-color-scheme: light) {{ :root {{ --bg:#fff; --fg:#000; --fg-light:#3d3c3c; --muted:#767373; --line:rgba(0,0,0,.15); --line-strong:#000; --accent:#007a3d; --on-accent:#fff; }} }}
+  body {{ font-family:"Space Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--fg); margin:0;
+         display:flex; justify-content:center; padding:24px; -webkit-font-smoothing:antialiased; }}
+  .card {{ width:440px; max-width:100%; background:var(--bg); border:1px solid var(--line-strong); border-radius:12px; padding:30px; text-align:center; }}
+  .brand {{ display:flex; justify-content:center; align-items:baseline; gap:10px; margin-bottom:4px; }}
+  .brand svg {{ height:16px; width:auto; fill:var(--accent); }}
+  .brand b {{ font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-size:15px; font-weight:600; }}
+  .sub {{ font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--muted); font-size:11px; letter-spacing:.06em; text-transform:uppercase; margin:0 0 20px; }}
+  .qr {{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px; display:inline-block; }}
   .qr img {{ display:block; width:260px; height:260px; image-rendering:pixelated; }}
-  .url {{ font-size:18px; font-weight:600; margin:18px 0 4px; color:#9be319; word-break:break-all; }}
-  .alt {{ font-size:12px; color:#778; margin:0 0 16px; }}
-  ol {{ text-align:left; font-size:13px; line-height:1.7; color:#ccd; margin:14px 4px 0; padding-left:20px; }}
-  .tok {{ margin-top:16px; padding:10px 12px; background:rgba(155,227,25,.08);
-         border:1px dashed rgba(155,227,25,.4); border-radius:12px; font-size:13px; }}
-  .tok b {{ font-family:ui-monospace,monospace; color:#9be319; }}
-  .foot {{ margin-top:18px; font-size:11px; color:#556; }}
-  @media print {{ body {{ background:#fff; color:#111; }} .card {{ box-shadow:none; border:1px solid #ccc; background:#fff; }}
-                  .url {{ color:#3a7d00; }} ol {{ color:#333; }} .foot {{ color:#999; }} }}
+  .url {{ font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-size:16px; font-weight:600; margin:18px 0 4px; color:var(--accent); word-break:break-all; }}
+  .alt {{ font-size:12px; color:var(--muted); margin:0 0 16px; }} .alt b {{ font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--fg-light); font-weight:500; }}
+  ol {{ text-align:left; font-size:13px; line-height:1.7; color:var(--fg-light); margin:14px 4px 0; padding-left:20px; }}
+  ol b {{ color:var(--fg); }} small {{ color:var(--muted); }}
+  .tok {{ margin-top:16px; padding:10px 12px; border:1px dashed var(--accent); border-radius:8px; font-size:13px; color:var(--fg-light); }}
+  .tok b {{ font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--accent); }}
+  .foot {{ margin-top:18px; font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-size:10.5px; color:var(--muted); letter-spacing:.02em; }}
+  .print {{ position:fixed; bottom:20px; right:20px; padding:10px 18px; border:1px solid var(--accent); border-radius:999px;
+            background:var(--accent); color:var(--on-accent); font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-weight:600; font-size:13px; cursor:pointer; }}
+  @media print {{ :root {{ --bg:#fff; --fg:#000; --fg-light:#333; --muted:#777; --line:#ccc; --line-strong:#000; --accent:#007a3d; }} .card {{ border-color:#000; }} }}
 </style></head><body>
 <div class="card">
-  <h1>🛞 scout</h1>
+  <div class="brand">{wordmark}<b>/scout</b></div>
   <p class="sub">field setup · scan to drive</p>
   <div class="qr"><img src="data:image/png;base64,{qr_b64}" alt="QR"></div>
   <div class="url">{url}</div>
@@ -105,16 +123,14 @@ HTML_CARD = """<!DOCTYPE html><html><head><meta charset="utf-8">
     <li>Connect your phone/laptop to the <b>same Wi-Fi</b> as scout.</li>
     <li>Scan the QR (or type the URL).</li>
     <li>Accept the security warning once (Advanced → Proceed){trusted_note}.<br>
-        <small>📱 to remove warnings on iOS/Android, open <b>/trust</b> first.</small></li>
+        <small>to remove warnings on iOS/Android, open <b>/trust</b> first.</small></li>
     <li>Tap <b>Create / Unlock passkey</b> — use Face ID / Touch ID / fingerprint.</li>
-    <li>You're in. Drive responsibly. 🛞</li>
+    <li>You're in. Drive responsibly.</li>
   </ol>
   {token_block}
   <div class="foot">passwordless · your key never leaves your device · {host}</div>
 </div>
-<button class="noprint" onclick="window.print()"
-  style="position:fixed;bottom:20px;right:20px;padding:12px 18px;border:none;border-radius:12px;
-         background:#76b900;color:#07120a;font-weight:600;cursor:pointer">🖨️ Print</button>
+<button class="noprint print" onclick="window.print()">Print</button>
 </body></html>"""
 
 
@@ -140,7 +156,7 @@ def build(url: str, out_dir: Path, bootstrap: str = "", trusted: bool = False) -
 
     html = HTML_CARD.format(
         qr_b64=qr_b64, url=url, ip_url=ip_url, token_block=token_block,
-        host=socket.gethostname(), trusted_note=trusted_note,
+        host=socket.gethostname(), trusted_note=trusted_note, wordmark=wordmark_svg(),
     )
     html_path.write_text(html)
     return {"png": str(png_path), "html": str(html_path), "url": url, "ip_url": ip_url}

@@ -3,7 +3,7 @@
 🛞 scout dashboard server — drive the Earth Rover Mini from the web.
 
 A single FastAPI app that:
-  • serves the glassmorphic dashboard in ./docs
+  • serves the dashboard in ./docs (Strands design: strands-labs/robots docs tokens)
   • streams the scout agent over WebSocket (/ws/chat) with a custom
     callback_handler (token + tool-use + telemetry events, à la devduck)
   • proxies the Earth Rovers SDK (camera frames, telemetry, control, speak)
@@ -88,43 +88,45 @@ except Exception as _e:
 _TRUST_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>scout · trust this device</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
 <style>
-  body {{ font-family:system-ui,-apple-system,sans-serif; background:#0a0a0f; color:#e8e8f0;
-         margin:0; padding:24px; display:flex; justify-content:center; }}
-  .card {{ width:min(460px,92vw); background:linear-gradient(160deg,#13131c,#0b0b12);
-          border:1px solid rgba(255,255,255,.12); border-radius:24px; padding:28px;
-          box-shadow:0 24px 70px rgba(0,0,0,.5); }}
-  h1 {{ font-size:24px; margin:0 0 2px; text-align:center; }}
-  .sub {{ color:#9aa; font-size:13px; margin:0 0 18px; text-align:center; }}
-  .mode {{ display:inline-block; font-size:11px; padding:3px 9px; border-radius:999px;
-          background:rgba(118,185,0,.12); color:#9be319; border:1px solid rgba(118,185,0,.3); }}
-  .qr {{ background:#fff; border-radius:18px; padding:14px; display:block; width:max-content;
-        margin:14px auto; }}
+  :root {{ --bg:#000; --fg:#fff; --fg-light:#b6b6b6; --muted:#999696; --line:#28292a; --line-strong:#fff; --accent:#00cc60; --on-accent:#000; --chip:#28292a; --warn:#f6bc00; }}
+  @media (prefers-color-scheme: light) {{ :root {{ --bg:#fff; --fg:#000; --fg-light:#3d3c3c; --muted:#767373; --line:rgba(0,0,0,.15); --line-strong:#000; --accent:#007a3d; --on-accent:#fff; --chip:#f4f4f4; --warn:#946e00; }} }}
+  body {{ font-family:"Space Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--fg); margin:0; padding:24px; display:flex; justify-content:center; -webkit-font-smoothing:antialiased; }}
+  .card {{ width:min(460px,92vw); background:var(--bg); border:1px solid var(--line-strong); border-radius:12px; padding:28px; }}
+  .brand {{ display:flex; justify-content:center; align-items:baseline; gap:10px; margin-bottom:4px; }}
+  .brand svg {{ height:16px; width:auto; fill:var(--accent); }}
+  .brand b {{ font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-size:15px; font-weight:600; }}
+  h1 {{ font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-size:18px; font-weight:600; margin:14px 0 4px; text-align:center; }}
+  .sub {{ color:var(--muted); font-size:13px; margin:0 0 18px; text-align:center; line-height:1.6; }}
+  .mode {{ display:inline-block; font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; padding:3px 9px; border-radius:999px; color:var(--accent); border:1px solid var(--accent); }}
+  .qr {{ background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px; display:block; width:max-content; margin:14px auto; }}
   .qr img {{ display:block; width:220px; height:220px; image-rendering:pixelated; }}
   .dl {{ display:block; text-align:center; margin:6px 0 18px; }}
-  .dl a {{ color:#9be319; font-weight:600; font-size:15px; text-decoration:none; }}
+  .dl a {{ color:var(--accent); font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-weight:600; font-size:13px; text-decoration:underline; text-underline-offset:.18em; }}
   .seg {{ display:flex; gap:8px; margin:0 0 14px; }}
-  .seg button {{ flex:1; padding:10px; border-radius:11px; border:1px solid rgba(255,255,255,.14);
-    background:rgba(255,255,255,.05); color:#cdd; font-size:14px; cursor:pointer; }}
-  .seg button.on {{ background:#76b900; color:#07120a; border-color:#76b900; font-weight:600; }}
+  .seg button {{ flex:1; padding:9px; border-radius:999px; border:1px solid var(--line-strong); background:transparent; color:var(--fg); font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; font-weight:500; cursor:pointer; }}
+  .seg button.on {{ background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:600; }}
   .steps {{ display:none; }} .steps.on {{ display:block; }}
-  ol {{ font-size:13.5px; line-height:1.75; color:#cdd; padding-left:20px; margin:6px 0 0; }}
-  code {{ background:rgba(255,255,255,.08); padding:1px 6px; border-radius:6px; font-size:12px; }}
-  .warn {{ background:rgba(255,180,84,.1); border:1px dashed rgba(255,180,84,.4); color:#ffce9a;
-          border-radius:12px; padding:12px; font-size:13px; margin:0 0 16px; }}
-  .foot {{ margin-top:18px; font-size:11px; color:#556; text-align:center; }}
+  ol {{ font-size:13.5px; line-height:1.75; color:var(--fg-light); padding-left:20px; margin:6px 0 0; }}
+  ol b {{ color:var(--fg); }}
+  code {{ font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; background:var(--chip); color:var(--fg-light); padding:1px 6px; border-radius:3px; font-size:12px; }}
+  .warn {{ border:1px dashed var(--warn); color:var(--fg-light); border-radius:8px; padding:12px; font-size:13px; margin:0 0 16px; line-height:1.5; }}
+  .warn b {{ color:var(--warn); }}
+  .foot {{ margin-top:18px; font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace; font-size:10.5px; color:var(--muted); text-align:center; }}
 </style></head><body>
 <div class="card">
-  <h1>🛞🔏 trust scout</h1>
-  <p class="sub">install the rover CA → no more certificate warnings<br>
+  <div class="brand">{wordmark}<b>/scout</b></div>
+  <h1>trust this device</h1>
+  <p class="sub">install the rover CA so the browser shows no certificate warning<br>
      <span class="mode">{mode}</span></p>
   {selfsigned_note}
   <div class="qr"><img src="data:image/png;base64,{qr_b64}" alt="CA QR"></div>
-  <div class="dl"><a href="{ca_url}" download="scout-rootCA.crt">⬇︎ download scout-rootCA.crt</a></div>
+  <div class="dl"><a href="{ca_url}" download="scout-rootCA.crt">download scout-rootCA.crt</a></div>
 
   <div class="seg">
-    <button id="biOS" class="on" onclick="seg('iOS')">📱 iPhone / iPad</button>
-    <button id="bAnd" onclick="seg('And')">🤖 Android</button>
+    <button id="biOS" class="on" onclick="seg('iOS')">iPhone / iPad</button>
+    <button id="bAnd" onclick="seg('And')">Android</button>
   </div>
 
   <div id="siOS" class="steps on">
@@ -915,7 +917,7 @@ async def trust_page(request: Request):
         qr_b64 = _b64.b64encode(png.read_bytes()).decode()
         selfsigned = ca is None
         note = (
-            "<p class='warn'>⚠️ This rover is in <b>self-signed</b> mode — there's no CA to "
+            "<p class='warn'>This rover is in <b>self-signed</b> mode — there's no CA to "
             "install. Just tap <b>Advanced → Proceed</b> on the browser warning when you open "
             "the dashboard. To remove warnings entirely, run mkcert on the rover host "
             "(<code>make mkcert-install</code>).</p>"
@@ -924,7 +926,7 @@ async def trust_page(request: Request):
         html = _TRUST_HTML.format(
             qr_b64=qr_b64, ca_url=ca_url,
             mode=("self-signed (no CA)" if selfsigned else "mkcert trusted CA"),
-            selfsigned_note=note,
+            selfsigned_note=note, wordmark=field_setup.wordmark_svg(),
         )
         return HTMLResponse(html)
     except Exception as e:
