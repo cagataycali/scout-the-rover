@@ -46,4 +46,4 @@ voice_say("the user just said hi over telegram", source="telegram")
 voice_say("CRITICAL: battery at 12%, head home", importance=2, source="thinker")
 ```
 
-<small>source: <a href="https://github.com/cagataycali/scout-the-rover/blob/main/tools/voice_bridge.py#L126">tools/voice_bridge.py:126</a></small>
+<small>source: <a href="https://github.com/cagataycali/scout-the-rover/blob/main/tools/voice_bridge.py#L127">tools/voice_bridge.py:127</a></small>

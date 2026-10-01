@@ -1,4 +1,4 @@
-strands-agents>=1.56.0,<2  # voice_agent/_voice_patch target the 1.56 bidi API (OpenAIRealtimeModel)
+strands-agents>=1.57.1,<1.60  # voice: 1.57 bidi API (model_id + transcription_model_id required); 1.60 removes strands.experimental.bidi, which tools/_bidi_compat.py falls back to
 requests>=2.32
 python-dotenv>=1.0
 # Dataset recording (LeRobot v3 format)

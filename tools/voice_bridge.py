@@ -2,7 +2,8 @@
 
 Other processes (thinker_loop, telegram_listener, agent.py …) push one-line
 briefings into a SQLite table. The voice listener pulls them in its event loop
-and emits `BidiTextInputEvent` so Scout speaks them out loud (or reacts).
+and hands each one to the model as a user `TextBlock` so Scout speaks them
+out loud (or reacts).
 
 Why SQLite (not in-memory queue): the daemons are separate processes. We
 already have `.memory/mem.db` shared between them (telegram history lives
