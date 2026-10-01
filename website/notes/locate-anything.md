@@ -6,7 +6,7 @@
 - `locate` — NVIDIA **LocateAnything-3B** (open-vocabulary, language-prompted
              grounding via `LOCATE_QUERY`). Output: `<ref>label</ref><box>..</box>`.
 
-## ⚠️ Dependency isolation
+## Dependency isolation
 LocateAnything's released modeling code requires **`transformers==4.57.1`**
 (it calls APIs removed in transformers 5.x). The main scout image ships
 transformers 5.x for Cosmos/lerobot/strands. So the `locate` backend runs in an

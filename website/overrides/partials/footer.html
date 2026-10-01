@@ -1,0 +1,11 @@
+{#- Docs pages end in the content column (partials/pager.html): an edit link and the previous/next cards. The copyright row is the whole footer. -#}
+<footer class="md-footer">
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      {% include "partials/copyright.html" %}
+      {% if config.extra.social %}
+        {% include "partials/social.html" %}
+      {% endif %}
+    </div>
+  </div>
+</footer>

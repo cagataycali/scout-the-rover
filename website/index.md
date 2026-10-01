@@ -7,9 +7,9 @@ hide:
 
 <div class="rh-hero" markdown>
 
-<p class="rh-eyebrow">🛞 <b>scout</b> · a small robot with a big curiosity</p>
+<p class="rh-eyebrow"><b>scout</b> / a small robot with a big curiosity</p>
 
-# sees · thinks · drives · remembers
+# sees / thinks / drives / remembers
 
 <p class="rh-lead"><strong>scout</strong> is a <a href="https://strandsagents.com">Strands</a> agent living on a Jetson AGX Thor that drives a
 <a href="https://www.frodobots.com/">FrodoBots Earth Rover Mini+</a>. It looks through the rover's two cameras, talks through its speaker,
@@ -18,10 +18,10 @@ as a LeRobot dataset with the agent's own reasoning aligned frame-by-frame.</p>
 
 <div class="scout-badges" markdown>
 <a href="https://github.com/cagataycali/scout-the-rover/actions/workflows/docs.yml"><img alt="docs" src="https://github.com/cagataycali/scout-the-rover/actions/workflows/docs.yml/badge.svg"></a>
-<a href="https://github.com/cagataycali/scout-the-rover/commits/main"><img alt="last commit" src="https://img.shields.io/github/last-commit/cagataycali/scout-the-rover?style=flat-square&color=2ee6d6"></a>
-<a href="https://github.com/cagataycali/scout-the-rover/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-16b9c4?style=flat-square"></a>
+<a href="https://github.com/cagataycali/scout-the-rover/commits/main"><img alt="last commit" src="https://img.shields.io/github/last-commit/cagataycali/scout-the-rover?style=flat-square&color=00cc60"></a>
+<a href="https://github.com/cagataycali/scout-the-rover/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-00cc60?style=flat-square"></a>
 <a href="https://huggingface.co/datasets/cagataydev/scout-earthrover-ecot"><img alt="dataset" src="https://img.shields.io/badge/🤗_dataset-scout--earthrover--ecot-ffc24a?style=flat-square"></a>
-<a href="https://strandsagents.com"><img alt="strands" src="https://img.shields.io/badge/built_with-strands_agents-30d1a8?style=flat-square"></a>
+<a href="https://strandsagents.com"><img alt="strands" src="https://img.shields.io/badge/built_with-strands_agents-00cc60?style=flat-square"></a>
 </div>
 
 <div class="scout-3d-slot" data-scout-3d="assets/models/scout.glb" data-alt="a stylised low-poly scout rover, spinning"><div class="scout-3d"></div></div>

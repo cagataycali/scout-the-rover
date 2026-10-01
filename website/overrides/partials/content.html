@@ -1,0 +1,33 @@
+{% include "partials/tags.html" %}
+{% include "partials/actions.html" %}
+{% set meta = page.meta or {} %}
+{% set content = page.content %}
+{% if "<h1" not in content %}
+  {% set content = "<h1>" ~ (page.title | d(config.site_name, true) | e) ~ "</h1>" ~ content %}
+{% endif %}
+{% if page.is_homepage %}
+  {{ content | replace("<h1>", "<h1 class=\"sr-visually-hidden\">", 1) }}
+{% else %}
+  {#- The strandsagents.com page head: the title, the page's description as a lede, an optional call to action, then a rule across the column. A description that only repeats the title (a page whose description repeats its title) is not shown twice. -#}
+  {% set parts = content.split("</h1>", 1) %}
+  {% set lede = meta.description if meta.description and meta.description not in parts[0] else "" %}
+  {#- scout's pages have no read badge; the hoist below is a no-op kept for parity with the neon docs. -#}
+  {% set rest = parts[1] if parts | length > 1 else "" %}
+  {% set badge = "" %}
+  {% if '<span class="read-badge">' in rest[:160] %}
+    {% set split = rest.split("</p>", 1) %}
+    {% set badge = split[0] ~ "</p>" %}
+    {% set rest = split[1] if split | length > 1 else "" %}
+  {% endif %}
+  {{ parts[0] }}</h1>
+  <div class="sr-pagehead">
+    {% if lede %}<p class="sr-lede">{{ lede }}</p>{% endif %}
+    {{ badge }}
+    {% if meta.cta and page.next_page %}<a class="sr-btn sr-btn--primary" href="{{ page.next_page.url | url }}">{{ page.next_page.title }}</a>{% endif %}
+  </div>
+  {{ rest }}
+  {% include "partials/pager.html" %}
+{% endif %}
+{% include "partials/source-file.html" %}
+{% include "partials/feedback.html" %}
+{% include "partials/comments.html" %}

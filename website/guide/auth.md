@@ -1,4 +1,4 @@
-# 🔐 scout auth — WebAuthn passkeys + HTTPS
+# scout auth: WebAuthn passkeys + HTTPS
 
 The dashboard is sealed behind **WebAuthn passkeys** (passwordless). Only enrolled
 admin devices can drive the rover.
@@ -18,7 +18,7 @@ make dashboard-tls            # local: https://localhost:8443
 # docker: DASH_TLS=true is the default in docker-compose.yml
 ```
 
-## ⚠️ The rpId gotcha — use a HOSTNAME, not a raw IP
+## The rpId gotcha: use a HOSTNAME, not a raw IP
 WebAuthn's relying-party id (`rpId`) **must be a registrable domain or
 `localhost`**. A raw IP address (`192.168.1.50`) is **not** a valid rpId — the
 browser will reject enrollment. `https://<ip>:8443` gives you a secure context
@@ -63,7 +63,7 @@ revoke. The last passkey can't be removed (would lock everyone out).
 
 ---
 
-# 🎫 Field setup kit (mDNS + mkcert + QR)
+# Field setup kit (mDNS + mkcert + QR)
 
 Three pieces make "scan & drive" work in the field:
 
@@ -124,7 +124,7 @@ contains the access URL + whatever bootstrap token you chose to embed).
 
 ---
 
-# 📱 Trust scout on iOS / Android (zero warnings)
+# Trust scout on iOS / Android (zero warnings)
 
 mkcert is **baked into the Docker image**. When the dashboard runs with mkcert
 (default), it issues a *locally-trusted* cert — but a phone still needs to trust
