@@ -20,7 +20,9 @@ extra_css:
   - stylesheets/scout.css?v=2   # bump on CSS changes to bust browser cache
 
 extra_javascript:
-  # mermaid fences are rendered by Material itself (pre.mermaid), themed by the --md-mermaid-* tokens in scout.css
+  # mermaid fences (class sr-diagram) are rendered by javascripts/mermaid.js from the page tokens, in both schemes
+  - https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js
+  - javascripts/mermaid.js?v=1
   - javascripts/motion.js?v=1
   - path: https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js
     type: module
@@ -126,7 +128,7 @@ markdown_extensions:
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
-          class: mermaid
+          class: sr-diagram
           format: !!python/name:pymdownx.superfences.fence_code_format ''
   - pymdownx.tabbed:
       alternate_style: true

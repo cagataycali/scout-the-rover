@@ -354,11 +354,20 @@ model-viewer.scout-3d:hover { border-color: var(--sr-accent); }
 .md-typeset :is(.admonition, details):is(.warning, .danger, .failure, .bug, .caution, .attention)[class] { border-left-color: var(--sr-warn); }
 .md-typeset :is(.warning, .danger, .failure, .bug, .caution, .attention)[class] > :is(.admonition-title, summary)::before { background-color: var(--sr-warn); }
 
-/* Media, mermaid, tables, misc chrome. */
+/* Media, tables, misc chrome. */
 .md-typeset img, .md-typeset video { border: 1px solid var(--md-default-fg-color--lightest); border-radius: var(--sr-radius); }
 .md-typeset .twemoji img, .md-typeset img.twemoji, .md-typeset .md-button img { border: 0; }
-.md-typeset .mermaid { display: flex; justify-content: center; margin: 1.2rem 0; padding: 1rem 0.5rem; border: 1px solid var(--md-default-fg-color--lightest); border-radius: var(--sr-radius); background: var(--md-default-bg-color); overflow-x: auto; }
-.md-typeset .mermaid svg { max-width: 100%; height: auto; }
+/* Mermaid fences (javascripts/mermaid.js): ink on the page surface, 8px corners, 1px strokes, dashed clusters, filled arrow heads. */
+.md-typeset .sr-mermaid { margin: 1.5rem auto; text-align: center; }
+.md-typeset .sr-mermaid svg { max-width: 100%; height: auto; font-family: var(--sr-mono); }
+.md-typeset .sr-mermaid svg :is(.node rect, .node polygon, .node path, .actor, rect.actor, .state-group rect, .statediagram-state rect, .note, .labelBox, .loopLine, .activation0, .activation1) { rx: 8px; ry: 8px; stroke-width: 1px !important; filter: none; }
+.md-typeset .sr-mermaid svg :is(.cluster rect, .cluster-label rect) { stroke: var(--sr-muted) !important; stroke-dasharray: 4 4; fill: var(--md-default-bg-color) !important; rx: 8px; ry: 8px; }
+.md-typeset .sr-mermaid svg :is(.edgePath path, .messageLine0, .messageLine1, .transition, .actor-line) { stroke-width: 1.5px !important; }
+.md-typeset .sr-mermaid svg :is(marker path, .arrowheadPath, .marker) { fill: var(--sr-fg) !important; stroke: var(--sr-fg) !important; }
+.md-typeset .sr-mermaid svg .messageLine1 { stroke-dasharray: 3 5; }
+.md-typeset .sr-mermaid svg .edgeLabel rect { fill: var(--md-default-bg-color); stroke: none; }
+.md-typeset .sr-mermaid svg .cluster-label text, .md-typeset .sr-mermaid svg .nodeLabel, .md-typeset .sr-mermaid svg .edgeLabel { font-family: var(--sr-mono); }
+.md-typeset .sr-mermaid[data-rendered="error"] { font-family: var(--sr-mono); font-size: 0.7rem; color: var(--sr-warn); border: 1px solid var(--sr-warn); border-radius: var(--sr-radius); padding: 0.8rem; }
 .md-typeset table:not([class]) td, .md-typeset table:not([class]) th { border-color: var(--md-default-fg-color--lightest); }
 .md-typeset .tasklist-control .task-list-indicator { background-color: var(--sr-accent); }
 .md-typeset mark { background: var(--sr-accent-soft); color: inherit; }
