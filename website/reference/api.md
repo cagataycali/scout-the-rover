@@ -29,41 +29,41 @@ robots. See [Auth](../guide/auth.md).
 
 | method | path | params | anonymous? | what |
 |---|---|---|---|---|
-| `GET` | `/api/config` | — | 🔒 session | Current model id, voice provider/name, system prompt and masked env keys for the ⚙️ drawer. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L638">src</a> |
-| `POST` | `/api/config` | JSON {reset_prompt, model_id, rover_sdk_url, voice_provider, voice_name, system_prompt, env} | 🔒 session | Update system prompt / model / env vars. Rebuilds the agent. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L655">src</a> |
-| `GET` | `/api/health` | — | ✅ public | Liveness: `{ok, sdk, …}` — the only `/api` route without a session. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L706">src</a> |
-| `GET` | `/api/telemetry` | — | 🔒 session | The SDK's `/data` snapshot: battery, GPS, IMU, RPMs, lamp, signal. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L559">src</a> |
+| `GET` | `/api/config` | — | 🔒 session | Current model id, voice provider/name, system prompt and masked env keys for the ⚙️ drawer. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L640">src</a> |
+| `POST` | `/api/config` | JSON {reset_prompt, model_id, rover_sdk_url, voice_provider, voice_name, system_prompt, env} | 🔒 session | Update system prompt / model / env vars. Rebuilds the agent. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L657">src</a> |
+| `GET` | `/api/health` | — | ✅ public | Liveness: `{ok, sdk, …}` — the only `/api` route without a session. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L708">src</a> |
+| `GET` | `/api/telemetry` | — | 🔒 session | The SDK's `/data` snapshot: battery, GPS, IMU, RPMs, lamp, signal. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L561">src</a> |
 
 ### Camera
 
 | method | path | params | anonymous? | what |
 |---|---|---|---|---|
-| `GET` | `/api/frame/{view}` | — | 🔒 session | Latest JPEG for `front` or `rear` (proxied from the SDK / hub). · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L568">src</a> |
-| `GET` | `/api/screenshot` | `views`: str | 🔒 session | Composite screenshot of `views` (default `front,rear,map`) from the SDK. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L581">src</a> |
+| `GET` | `/api/frame/{view}` | — | 🔒 session | Latest JPEG for `front` or `rear` (proxied from the SDK / hub). · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L570">src</a> |
+| `GET` | `/api/screenshot` | `views`: str | 🔒 session | Composite screenshot of `views` (default `front,rear,map`) from the SDK. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L583">src</a> |
 
 ### Control
 
 | method | path | params | anonymous? | what |
 |---|---|---|---|---|
-| `POST` | `/api/control` | JSON {linear, angular, duration} | 🔒 session | One drive frame `{linear, angular, duration}` in [-1, 1]; hold a stream of them to move (joystick/WASD). · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L592">src</a> |
-| `POST` | `/api/lamp` | JSON {on} | 🔒 session | Headlamp on/off `{on}`. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L604">src</a> |
-| `POST` | `/api/speak` | JSON {text} | 🔒 session | Say `{text}` through the rover's onboard speaker (SDK `/speak`). · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L614">src</a> |
+| `POST` | `/api/control` | JSON {linear, angular, duration} | 🔒 session | One drive frame `{linear, angular, duration}` in [-1, 1]; hold a stream of them to move (joystick/WASD). · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L594">src</a> |
+| `POST` | `/api/lamp` | JSON {on} | 🔒 session | Headlamp on/off `{on}`. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L606">src</a> |
+| `POST` | `/api/speak` | JSON {text} | 🔒 session | Say `{text}` through the rover's onboard speaker (SDK `/speak`). · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L616">src</a> |
 
 ### Agent (Ask / chat)
 
 | method | path | params | anonymous? | what |
 |---|---|---|---|---|
-| `POST` | `/api/chat` | — | 🔒 session | tiny.technology endpoint-device chat (use_device invoke → here). Gated like everything else. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L521">src</a> |
-| `WS` | `/ws/chat` | — | 🔒 session | WebSocket: chat (streaming agent) · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L424">src</a> |
-| `WS` | `/ws/voice` | — | 🔒 session | Voice: browser mic ↔ bidi model (PCM16 over WS). Pragmatic streaming bridge. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L768">src</a> |
+| `POST` | `/api/chat` | — | 🔒 session | tiny.technology endpoint-device chat (use_device invoke → here). Gated like everything else. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L523">src</a> |
+| `WS` | `/ws/chat` | — | 🔒 session | WebSocket: chat (streaming agent) · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L426">src</a> |
+| `WS` | `/ws/voice` | — | 🔒 session | Voice: browser mic ↔ bidi model (PCM16 over WS). Pragmatic streaming bridge. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L770">src</a> |
 
 ### Personas
 
 | method | path | params | anonymous? | what |
 |---|---|---|---|---|
-| `GET` | `/api/personas` | — | 🔒 session | Snapshot of every persona: container state (voice/thinker/telegram) + flags (thinker_drive, recording). · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L731">src</a> |
-| `POST` | `/api/personas/{name}` | JSON {action} | 🔒 session | Body: {"action": "start"\|"stop"\|"on"\|"off"}. Container personas answer · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L737">src</a> |
-| `GET` | `/api/personas/{name}/logs` | `n`: int | 🔒 session | Last lines of that persona container's logs via the host supervisor. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L756">src</a> |
+| `GET` | `/api/personas` | — | 🔒 session | Snapshot of every persona: container state (voice/thinker/telegram) + flags (thinker_drive, recording). · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L733">src</a> |
+| `POST` | `/api/personas/{name}` | JSON {action} | 🔒 session | Body: {"action": "start"\|"stop"\|"on"\|"off"}. Container personas answer · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L739">src</a> |
+| `GET` | `/api/personas/{name}/logs` | `n`: int | 🔒 session | Last lines of that persona container's logs via the host supervisor. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L758">src</a> |
 
 ### Replay (datasets)
 
@@ -83,15 +83,15 @@ robots. See [Auth](../guide/auth.md).
 
 | method | path | params | anonymous? | what |
 |---|---|---|---|---|
-| `GET` | `/auth/credentials` | — | ✅ public | List enrolled passkeys (admin only). · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L231">src</a> |
-| `POST` | `/auth/credentials/delete` | JSON {id} | ✅ public | Delete a passkey `{id}`; the last one cannot be removed. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L257">src</a> |
-| `POST` | `/auth/credentials/rename` | JSON {id, name} | ✅ public | Rename a passkey `{id, name}` (session required inside the handler). · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L248">src</a> |
-| `POST` | `/auth/login/begin` | — | ✅ public | Issue a login challenge. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L204">src</a> |
-| `POST` | `/auth/login/finish` | JSON {challenge_id, credential} | ✅ public | Verify the assertion and issue the session JWT. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L211">src</a> |
-| `POST` | `/auth/logout` | — | ✅ public | Drop the session. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L224">src</a> |
-| `POST` | `/auth/register/begin` | JSON {label, bootstrap} | ✅ public | Start a WebAuthn registration ceremony (first one may require the bootstrap token). · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L176">src</a> |
-| `POST` | `/auth/register/finish` | JSON {challenge_id, credential} | ✅ public | Verify the attestation and store the new passkey's public key. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L191">src</a> |
-| `GET` | `/auth/status` | — | ✅ public | `setup_required` (no passkeys yet), `enabled`, current session subject. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L169">src</a> |
+| `GET` | `/auth/credentials` | — | ✅ public | List enrolled passkeys (admin only). · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L233">src</a> |
+| `POST` | `/auth/credentials/delete` | JSON {id} | ✅ public | Delete a passkey `{id}`; the last one cannot be removed. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L259">src</a> |
+| `POST` | `/auth/credentials/rename` | JSON {id, name} | ✅ public | Rename a passkey `{id, name}` (session required inside the handler). · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L250">src</a> |
+| `POST` | `/auth/login/begin` | — | ✅ public | Issue a login challenge. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L206">src</a> |
+| `POST` | `/auth/login/finish` | JSON {challenge_id, credential} | ✅ public | Verify the assertion and issue the session JWT. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L213">src</a> |
+| `POST` | `/auth/logout` | — | ✅ public | Drop the session. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L226">src</a> |
+| `POST` | `/auth/register/begin` | JSON {label, bootstrap} | ✅ public | Start a WebAuthn registration ceremony (first one may require the bootstrap token). · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L178">src</a> |
+| `POST` | `/auth/register/finish` | JSON {challenge_id, credential} | ✅ public | Verify the attestation and store the new passkey's public key. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L193">src</a> |
+| `GET` | `/auth/status` | — | ✅ public | `setup_required` (no passkeys yet), `enabled`, current session subject. · <a href="https://github.com/cagataycali/scout-the-rover/blob/main/dashboard_server.py#L171">src</a> |
 
 ### Shell & trust
 

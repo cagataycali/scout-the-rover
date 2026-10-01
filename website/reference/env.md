@@ -70,6 +70,7 @@ Where they are set: your `.env` (see the [walkthrough](../start/config.md)), the
 | `VOICE_MODEL` | *(unset)* | `voice_agent.py` | Realtime model id override (e.g. `gpt-realtime-2`). |
 | `VOICE_NAME` | *(unset)* | `dashboard_server.py`, `voice_agent.py` | Voice inside the provider (`marin`, `shimmer`, `matthew`, `Kore`…). |
 | `VOICE_PROVIDER` | `openai` | `dashboard_server.py`, `personas.py`, `voice_agent.py` | `openai` · `nova_sonic` · `gemini` — which bidi speech model the voice persona builds. |
+| `VOICE_TRANSCRIPTION_MODEL` | `bidi.DEFAULT_OPENAI_TRANSCRIPTION_MODEL` | `voice_agent.py` | OpenAI user-speech transcriber (default `gpt-4o-transcribe`; `off` disables transcripts). |
 
 ### Telegram
 
@@ -235,5 +236,5 @@ Where they are set: your `.env` (see the [walkthrough](../start/config.md)), the
 |---|---|---|---|
 | `STRANDS_MODEL_ID` | *(unset)* | `dashboard_server.py` | Bedrock model id for every text persona; editable live from the cockpit ⚙️ drawer. |
 
-_155 variables, scanned from every `os.getenv` / `os.environ` in the repo._
+_156 variables, scanned from every `os.getenv` / `os.environ` in the repo._
 <!-- /gen:env -->
