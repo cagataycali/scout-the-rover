@@ -373,3 +373,83 @@ def test_requirements_pin_the_supported_window():
     req = (ROOT / "requirements.txt").read_text(encoding="utf-8")
     line = next(l for l in req.splitlines() if l.startswith("strands-agents"))
     assert ">=1.57.1" in line and "<1.60" in line, line
+
+
+# ── end to end on the real BidiAgent (fake model, no network) ──────────────
+def test_real_bidi_agent_runs_the_rover_adapters_end_to_end(va, monkeypatch):
+    """agent.run(inputs=[rover mic, briefing], outputs=[rover speaker]) on the installed BidiAgent:
+    the mic's AudioDelta and the briefing's TextBlock reach model.send, and the model's
+    bidi_barge_in / bidi_audio_delta reach the rover speaker as clear / push."""
+    BidiModel = importlib.import_module(f"{bidi.BIDI_PACKAGE}.models.model").BidiModel
+    ev = importlib.import_module(f"{bidi.BIDI_PACKAGE}.types.events")
+
+    class FakeModel(BidiModel):
+        model_id = "fake"
+
+        def __init__(self):
+            self.q: asyncio.Queue = asyncio.Queue()
+            self.got: list = []
+            self._connection_id = None
+
+        async def start(self, system_prompt=None, tools=None, messages=None, **kw):
+            self._connection_id = "c1"
+            await self.q.put(ev.BidiConnectionStartEvent(connection_id="c1", model="fake"))
+
+        async def stop(self):
+            pass
+
+        async def send(self, content):
+            self.got.append(type(content).__name__)
+            if isinstance(content, bidi.TextBlock):
+                await self.q.put(ev.BidiBargeInEvent(reason="user_speech"))
+            pcm = content.source["bytes"] if isinstance(content, bidi.AudioDelta) else b"\x05\x00" * 240
+            await self.q.put(ev.BidiAudioDeltaEvent(audio=base64.b64encode(pcm).decode(), format="pcm",
+                                                    sample_rate=24000, channels=1))
+
+        async def receive(self):
+            while True:
+                yield await self.q.get()
+
+        def get_config(self):
+            return {"model_id": "fake"}
+
+        def update_config(self, **cfg):
+            pass
+
+        def get_audio_config(self):
+            return _FakeModel(24000).get_audio_config()
+
+    posts = _Posts()
+    monkeypatch.setattr(va.requests, "post", posts.post)
+    monkeypatch.setattr(va.requests, "get", posts.get)
+    rows = [[(1, "telegram", "say hi", 2)]]
+    monkeypatch.setattr("tools.voice_bridge.pop_pending", lambda n: rows.pop(0) if rows else [])
+    monkeypatch.setattr("tools.voice_bridge.flush_stale", lambda: 0)
+
+    async def main():
+        model = FakeModel()
+        agent = bidi.BidiAgent(model=model, tools=[bidi.stop_conversation], system_prompt="x")
+        io = va.RoverAudioIO("http://sdk")
+        inp, out, brief = io.input(), io.output(), va._BriefingInput()
+        brief.POLL_SECONDS = 0.01
+        brief.DEBOUNCE_SECONDS = 0.01
+        runner = asyncio.create_task(agent.run(inputs=[inp, brief], outputs=[out]))
+        await asyncio.sleep(0.2)
+        inp._queue.put_nowait(b"\x01\x00" * 480)
+        for _ in range(100):                       # up to 2 s for both items to round-trip
+            await asyncio.sleep(0.02)
+            if sorted(model.got) == ["AudioDelta", "TextBlock"] and \
+               [c[1] for c in posts.calls].count("rover-speaker/push") >= 2:
+                break
+        runner.cancel()
+        try:
+            await runner
+        except (asyncio.CancelledError, Exception):
+            pass
+        return model.got
+
+    got = asyncio.run(main())
+    assert sorted(got) == ["AudioDelta", "TextBlock"], got
+    kinds = [c[1] for c in posts.calls]
+    assert "rover-mic/start" in kinds and "rover-speaker/start" in kinds
+    assert kinds.count("rover-speaker/push") >= 2 and "rover-speaker/clear" in kinds
