@@ -303,7 +303,7 @@
 .md-typeset .md-button--primary { background: var(--sr-accent); border-color: var(--sr-accent); color: var(--sr-on-accent); }
 .md-typeset .md-button--primary:hover { background: var(--sr-accent-bright); border-color: var(--sr-accent-bright); color: var(--sr-on-accent); }
 .md-typeset .md-button .twemoji { color: inherit; }
-.md-typeset .buttons { display: flex; justify-content: center; flex-wrap: wrap; gap: 0.6rem; margin: 0 0 1.6rem; }
+.md-typeset .buttons, .sr-404 .buttons { display: flex; justify-content: center; flex-wrap: wrap; gap: 0.6rem; margin: 0 0 1.6rem; }
 .md-typeset .buttons .md-button { margin: 0; min-width: 9.5rem; }
 
 /* Home hero: centred on the page surface. A mono eyebrow, the title, the lede, the badge row, the 3D rover in an outlined card, pill buttons. */
@@ -378,10 +378,10 @@ model-viewer.scout-3d:hover { border-color: var(--sr-accent); }
 /* Inline code inside prose wraps on phones (long paths and commands used to force a 1900 px page). */
 .md-typeset li code, .md-typeset td code, .md-typeset p code { white-space: normal; overflow-wrap: anywhere; }
 .md-typeset .tabbed-labels { overflow-x: auto; scrollbar-width: none; }
-/* 404: centred, the code in mono green. */
-.md-typeset .sr-404 { text-align: center; padding: 2rem 0; }
-.md-typeset .sr-404 .sr-404-code { font-family: var(--sr-mono); font-size: 3rem; font-weight: 600; color: var(--sr-accent); margin: 0; line-height: 1; }
-.md-typeset .sr-404 .tagline { font-family: var(--sr-mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--md-default-fg-color--light); margin: 0.8rem 0 1.6rem; }
+/* 404: centred (the h1 size comes from the shared block above), the message as a mono tagline. */
+.sr-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.sr-404 { text-align: center; padding: 2rem 0; }
+.md-typeset .sr-404 p.tagline { font-family: var(--sr-mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--md-default-fg-color--light); margin: 0.8rem 0 1.6rem; }
 @media (max-width: 40em) {
   .md-typeset .buttons .md-button { flex: 1 1 0; min-width: 0; }
   model-viewer.scout-3d, .scout-3d { height: 260px; }
