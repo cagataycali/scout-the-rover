@@ -34,6 +34,7 @@ description: "A walkthrough of .env.example — what each block does and which s
 |---|---|
 | `VOICE_PROVIDER` | `openai` · `nova_sonic` · `gemini` |
 | `VOICE_MODEL` | e.g. `gpt-realtime-2` |
+| `VOICE_TRANSCRIPTION_MODEL` | OpenAI user-speech transcriber, default `gpt-4o-transcribe`; `off` disables transcripts |
 | `VOICE_NAME` | provider voice — `marin`, `shimmer`, `matthew`, `Kore`… |
 | `TTS_PROVIDER`, `TTS_API_KEY`, `TTS_VOICE` | the SDK-side text-to-speech behind `/speak` (`edge` is free). |
 

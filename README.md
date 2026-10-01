@@ -396,7 +396,9 @@ flowchart LR
 
 ## 🎙 voice
 
-`voice_agent.py` builds a `strands.experimental.bidi.BidiAgent` with two audio
+`voice_agent.py` builds a Strands `BidiAgent` (strands-agents ≥ 1.57.1; every
+bidi import goes through `tools/_bidi_compat.py`, which takes `strands.bidi` or
+`strands.experimental.bidi`, whichever the installed version has) with two audio
 backends:
 
 ```bash
@@ -412,8 +414,8 @@ default reply. `rover_speak` is reserved for the rare moment a word is genuinely
 worth it.
 
 A local patch (`_voice_patch.py`) re-wires OpenAI Realtime's
-`function_call_output` to handle image blocks in tool results (PR upstream only
-fixes direct image *input*).
+`function_call_output` to handle image blocks in tool results (upstream only
+fixes direct image *input*; 1.57.1 still raises on them).
 
 ---
 

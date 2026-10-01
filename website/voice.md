@@ -5,13 +5,20 @@ description: "A bidirectional voice persona over the rover's own mic and speaker
 
 # Voice — talking to a rover through the rover
 
-`voice_agent.py` builds a Strands **`BidiAgent`** (bidirectional streaming speech) with the full rover toolbelt and one of
-two audio backends:
+`voice_agent.py` builds a Strands **`BidiAgent`** (bidirectional streaming speech, strands-agents ≥ 1.57.1) with the full
+rover toolbelt and one of two audio backends:
 
 ```
---audio laptop   your mic  ──► BidiAudioIO  ──► BidiAgent ──► your speakers
+--audio laptop   your mic  ──► AudioIO      ──► BidiAgent ──► your speakers
 --audio rover    rover mic ──► RoverAudioIO ──► BidiAgent ──► rover speaker      (SDK /rover-mic, /rover-speaker over WebRTC)
 ```
+
+Every Strands bidi name enters through one module, `tools/_bidi_compat.py`: it resolves `strands.bidi` (where the API
+graduated to) first and `strands.experimental.bidi` (what 1.57.1 ships) second, so the same code runs on both and a
+too-old install fails with a clear `ImportError` instead of a `TypeError` mid-session. Inputs hand the model
+`AudioDelta` / `TextBlock` items, outputs key on the `bidi_audio_delta` and `bidi_barge_in` event types, and 1.57 made
+`model_id` and OpenAI's `transcription_model_id` explicit — `VOICE_MODEL` and `VOICE_TRANSCRIPTION_MODEL`
+(default `gpt-4o-transcribe`, `off` disables user transcripts) set them.
 
 The `voice` compose service runs the **rover** backend: people talk *to the robot*, and it answers *from the robot*. The cockpit's
 🎙 button is a third path — the phone's mic ↔ `/ws/voice` ↔ the phone's speaker — for driving from a noisy room.
@@ -49,7 +56,8 @@ Text personas cannot speak. Instead `voice_say` (the [voice bridge](reference/to
 queue that `_BriefingInput` inside the voice agent turns into a `[BRIEFING] …` text turn:
 
 - **debounced** — a burst of rows within `SCOUT_BRIEFING_DEBOUNCE_S` coalesces into one briefing;
-- **response-gated** — never injected while a response is in flight (tracked via `_voice_patch`), max hold `SCOUT_BRIEFING_MAX_HOLD_S`;
+- **response-gated** — never injected while a response is in flight (read from the OpenAI model's own session state),
+  max hold `SCOUT_BRIEFING_MAX_HOLD_S`;
 - **muted sources** — `SCOUT_BRIEFING_MUTE_SOURCES` (default `thinker`) are dropped unless tagged URGENT, so the slow thinker
   cannot make the robot chatter every minute;
 - stale briefings queued while the voice was down are skipped at startup.
@@ -61,8 +69,9 @@ The prompt tells the model to *respond* to a briefing naturally, never to read i
 Three failures, all found in the field, all fixed in code rather than by restarting things:
 
 1. **Images in tool results crashed OpenAI Realtime.** `rover_see` returns image blocks; the Realtime API rejects anything but
-   text in a `function_call_output`. `_voice_patch.py` overrides `_send_tool_result` to send the text parts as the function
-   output and re-inject the images as `input_image` items, then commits once. (Upstream only fixed *direct* image input.)
+   text in a `function_call_output`, and 1.57.1 still raises on an image block there. `_voice_patch.py` overrides
+   `_send_tool_result` to send the text parts as the function output, re-inject the images as `input_image` items, and hand
+   the continuation to the model's own coalescing `response.create`. (Upstream only fixed *direct* image input.)
 2. **The voice stole the mic from everyone else.** The SDK's `/rover-mic` buffer empties on read, so the recorder, listener and
    voice agent each got a third of the audio. The [MediaHub](perception.md) is the single drainer now; consumers subscribe.
 3. **A revoked API key turned into a camera storm.** When the provider returned 401 the voice container crash-looped every few
