@@ -46,7 +46,7 @@ container against the live rover.
 5. **YOLO backend** — PASS. Loads on CUDA, 0.63s/frame inference, empty dets
    facing a wall. Both detector backends (yolo + locate) validated.
 
-## ⚠️ Known issues (pre-existing, NOT part of perception work — for follow-up)
+## Known issues (pre-existing, NOT part of perception work — for follow-up)
 1. **LeRobot 0.5.1 + datasets 5.0.0 `action_age` save bug.** `add_frame`
    REQUIRES `action_age` as an `np.ndarray` shape `(1,)`, but `save_episode`'s
    `Dataset.from_dict` maps that feature to a scalar `Value('float32')` and

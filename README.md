@@ -8,10 +8,10 @@
 
 [![docs](https://github.com/cagataycali/scout-the-rover/actions/workflows/docs.yml/badge.svg)](https://cagataycali.github.io/scout-the-rover/)
 [![last commit](https://img.shields.io/github/last-commit/cagataycali/scout-the-rover?style=flat-square&color=2ee6d6)](https://github.com/cagataycali/scout-the-rover/commits/main)
-[![license](https://img.shields.io/badge/license-MIT-16b9c4?style=flat-square)](LICENSE)
-[![sdk](https://img.shields.io/badge/sdk-earth--rovers--sdk-00ff88?style=flat-square)](https://github.com/cagataycali/earth-rovers-sdk)
-[![tools](https://img.shields.io/badge/tools-20_(+fleet_+cosmos)-ff2a6d?style=flat-square)](https://cagataycali.github.io/scout-the-rover/reference/tools/)
-[![strands](https://img.shields.io/badge/built_with-strands_agents-b967ff?style=flat-square)](https://strandsagents.com)
+[![license](https://img.shields.io/badge/license-MIT-00cc60?style=flat-square)](LICENSE)
+[![sdk](https://img.shields.io/badge/sdk-earth--rovers--sdk-00cc60?style=flat-square)](https://github.com/cagataycali/earth-rovers-sdk)
+[![tools](https://img.shields.io/badge/tools-20_(+fleet_+cosmos)-00cc60?style=flat-square)](https://cagataycali.github.io/scout-the-rover/reference/tools/)
+[![strands](https://img.shields.io/badge/built_with-strands_agents-00cc60?style=flat-square)](https://strandsagents.com)
 [![cosmos](https://img.shields.io/badge/🌌_NVIDIA-cosmos-76b900?style=flat-square)](https://github.com/strands-labs/strands-for-cosmos)
 [![dataset](https://img.shields.io/badge/🤗_dataset-scout--earthrover--ecot-ffce1c?style=flat-square)](https://huggingface.co/datasets/cagataydev/scout-earthrover-ecot)
 

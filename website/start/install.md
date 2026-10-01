@@ -8,7 +8,7 @@ description: "Clone, build scout:slim, wire the Earth Rovers SDK — on a Jetson
 These steps are what produced the reference deployment on the Jetson AGX Thor. Nothing here is Jetson-specific: any
 arm64/amd64 docker host works.
 
-## 1 · Clone
+## 1 / Clone
 
 ```bash
 git clone https://github.com/cagataycali/scout-the-rover.git
@@ -28,7 +28,7 @@ $EDITOR earth-rovers-sdk/.env   # SDK_API_TOKEN, BOT_SLUG, CHROME_EXECUTABLE_PAT
     Port 8001 is often taken (docker desktop, other SDKs). Everything in this repo assumes the SDK on **8002** —
     keep `ROVER_SDK_URL` and the SDK's own `SDK_PORT` in agreement.
 
-## 2 · Build the image
+## 2 / Build the image
 
 ```bash
 make docker-slim-build          # docker compose -f docker-compose.slim.yml build  → scout:slim
@@ -42,7 +42,7 @@ What goes into `scout:slim` (`Dockerfile.scout.slim`):
 - **node 22.14 + tiny-tech vendored in `/opt/tiny-mcp`** so the fleet bridge needs no runtime npm fetch (off unless `TINY_MCP=1`).
 - One `docker/entrypoint.sh` that dispatches on the service name: `sdk dashboard telegram thinker listener media yolo agent voice reasoner warmup all`.
 
-## 3 · Bring the stack up
+## 3 / Bring the stack up
 
 ```bash
 make docker-slim-up-all         # --profile all: sdk + dashboard + telegram + thinker (+ media + yolo via the override)
@@ -58,7 +58,7 @@ The voice persona is a separate profile because it grabs the rover's mic and spe
 docker compose -f docker-compose.slim.yml -f docker-compose.slim.override.yml --profile voice up -d voice
 ```
 
-## 4 · (Optional) the host-side persona supervisor
+## 4 / (Optional) the host-side persona supervisor
 
 The cockpit's 🎭 Personas pills start/stop the `voice`, `thinker` and `telegram` containers **without a docker socket in any
 container**. A ~250-line stdlib server on the host listens on a unix socket that is bind-mounted into the dashboard only:
@@ -72,7 +72,7 @@ echo "SCOUT_SUPERVISOR_TOKEN=$(openssl rand -hex 24)" >> .env        # shared wi
 
 Details and the threat model: [Personas](../personas.md).
 
-## 5 · (Optional) a public hostname
+## 5 / (Optional) a public hostname
 
 ```bash
 cloudflared tunnel login
