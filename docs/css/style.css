@@ -93,6 +93,8 @@ html, body {
   overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
 }
+body { display: flex; flex-direction: column; }
+body.replay { display: block; }
 button, input, select, textarea { font-family: inherit; }
 a { color: var(--accent); }
 code { font-family: var(--sr-mono); }
@@ -111,7 +113,7 @@ code { font-family: var(--sr-mono); }
 
 /* Header: one row. The STRANDS wordmark, /scout, link state, then telemetry pills, personas, icon buttons. */
 .topbar {
-  position: relative; z-index: 5;
+  position: relative; z-index: 5; flex: 0 0 auto;
   display: flex; align-items: center; gap: 10px;
   margin: 0; padding: calc(var(--safe-top) + 8px) 14px 8px;
   border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
@@ -166,10 +168,11 @@ code { font-family: var(--sr-mono); }
 /* Stage: camera and chat as two outlined cards. */
 .stage {
   position: relative; z-index: 4;
-  height: 100%;
+  flex: 1 1 auto; min-height: 0; height: auto;
   display: flex; flex-direction: column; gap: 10px;
   padding: 10px 12px 0;
-  padding-bottom: calc(84px + var(--safe-bot));
+  /* the fixed command bar (36px buttons + 8px padding + 10px offset) lives in this gap */
+  padding-bottom: calc(74px + var(--safe-bot));
 }
 
 /* Camera */
@@ -192,6 +195,7 @@ code { font-family: var(--sr-mono); }
   display: flex; flex-direction: column; justify-content: space-between;
   padding: 10px;
 }
+/* The chips share the bottom edge with the HUD: HUD left, chips right, both clear of the picture-in-picture. */
 .cam-tag {
   align-self: flex-start;
   background: rgba(0, 0, 0, 0.72); color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.35);
@@ -281,7 +285,7 @@ code { font-family: var(--sr-mono); }
 
 /* Joystick */
 .joystick-dock {
-  position: fixed; right: 16px; bottom: calc(84px + var(--safe-bot)); z-index: 6;
+  position: fixed; right: 16px; bottom: calc(74px + var(--safe-bot)); z-index: 6;
   display: none; align-items: center; gap: 14px; padding: 14px; border-radius: var(--sr-radius-lg);
   background: var(--bg); border: 1px solid var(--line-strong);
 }
@@ -385,8 +389,10 @@ code { font-family: var(--sr-mono); }
 @media (min-width: 860px) {
   .stage {
     flex-direction: row; max-width: 1400px; margin: 0 auto; width: 100%;
-    padding-bottom: calc(84px + var(--safe-bot));
+    padding-bottom: calc(74px + var(--safe-bot));
   }
+  .cam-overlay { padding-bottom: 14px; }
+  .hud { bottom: 14px; }
   .camera-wrap { flex: 1 1 60%; height: auto; min-height: 0; }
   .chat { flex: 1 1 40%; max-width: 460px; }
   .cmdbar { left: 50%; transform: translateX(-50%); max-width: 760px; width: calc(100% - 24px); }
