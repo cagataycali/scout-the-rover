@@ -44,6 +44,7 @@ NOTES = {
     # ── voice ─────────────────────────────────────────────────────────────────
     "VOICE_PROVIDER": "`openai` · `nova_sonic` · `gemini` — which bidi speech model the voice persona builds.",
     "VOICE_MODEL": "Realtime model id override (e.g. `gpt-realtime-2`).",
+    "VOICE_TRANSCRIPTION_MODEL": "OpenAI user-speech transcriber (default `gpt-4o-transcribe`; `off` disables transcripts).",
     "VOICE_NAME": "Voice inside the provider (`marin`, `shimmer`, `matthew`, `Kore`…).",
     "VOICE_AUDIO": "`laptop` (local mic/speakers) or `rover` (the rover's mic + speaker over the SDK) — default for `--audio`.",
     "SCOUT_BRIEFING_DEBOUNCE_S": "Voice bridge: coalesce briefings that arrive within this window into one text turn (4 s).",

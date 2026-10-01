@@ -783,9 +783,7 @@ async def ws_voice(ws: WebSocket):
 
     try:
         from voice_agent import build_voice_agent
-        from strands.experimental.bidi.types.events import (
-            BidiAudioInputEvent, BidiAudioStreamEvent,
-        )
+        from tools import _bidi_compat as bidi   # strands.bidi / strands.experimental.bidi, one surface
     except Exception as e:
         await ws.send_text(json.dumps({"type": "error", "error": f"voice deps: {e}"}))
         await ws.close()
@@ -802,13 +800,10 @@ async def ws_voice(ws: WebSocket):
         async def stop(self):
             pass
         async def __call__(self):
+            # 1.57: AudioDelta(format, source={"bytes"}); the browser already records at the
+            # model's input rate (voice_meta tells it) and the model config owns rate/channels.
             data = await in_q.get()
-            return BidiAudioInputEvent(
-                audio=base64.b64encode(data).decode(),
-                channels=self._cfg.get("channels", 1),
-                format=self._cfg.get("format", "pcm"),
-                sample_rate=self._cfg.get("sample_rate", 16000),
-            )
+            return bidi.AudioDelta(format=self._cfg.get("format", "pcm"), source={"bytes": data})
 
     class _BrowserOutput:
         async def start(self, agent):
@@ -818,10 +813,13 @@ async def ws_voice(ws: WebSocket):
         async def stop(self):
             pass
         async def __call__(self, event):
-            if isinstance(event, BidiAudioStreamEvent):
+            kind = bidi.event_type(event)
+            if kind == bidi.EVENTS.AUDIO_DELTA:        # "audio" = base64 PCM16 at the output rate
                 await ws.send_text(json.dumps({
                     "type": "audio", "data": event["audio"],
                 }))
+            elif kind == bidi.EVENTS.BARGE_IN:         # user spoke over the model: flush playback
+                await ws.send_text(json.dumps({"type": "barge_in"}))
 
     agent, _ = build_voice_agent(provider, voice, audio="laptop")
     bin_, bout = _BrowserInput(), _BrowserOutput()

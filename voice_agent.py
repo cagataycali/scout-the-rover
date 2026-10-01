@@ -8,7 +8,7 @@ and can speak through the ROVER's onboard speaker too (rover_speak).
 Architecture (two audio backends):
 
   --audio laptop  (default):
-    Laptop mic ──→ BidiAudioIO ──→ BidiAgent ──→ Laptop speakers
+    Laptop mic ──→ AudioIO ─────→ BidiAgent ──→ Laptop speakers
   --audio rover:
     Rover  mic ──→ RoverAudioIO ─→ BidiAgent ──→ Rover speaker
                    (SDK /rover-mic, /rover-speaker over WebRTC)
@@ -36,8 +36,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 🩹 Patch strands so rover image tool-results work on OpenAI Realtime
-# (upstream PR #2327 only fixes direct image INPUT, not tool-result images)
+# (1.57.1 _send_tool_result still refuses image blocks; see _voice_patch.py)
 import _voice_patch  # noqa: F401,E402
+# The ONE place Scout imports Strands bidi names (strands.bidi or strands.experimental.bidi)
+from tools import _bidi_compat as bidi  # noqa: E402
 
 import base64
 
@@ -137,55 +139,49 @@ through movement — and saves its few words for the moments that deserve them.
 
 
 def _build_bidi_model(provider: str, voice: Optional[str] = None):
-    """Build a bidi model for `provider` on strands-agents >= 1.56.
+    """Build a bidi model for `provider` on strands-agents >= 1.57.1.
 
-    1.56 renamed the classes and flattened the constructors:
-      BidiOpenAIRealtimeModel(provider_config=…, client_config=…) → OpenAIRealtimeModel(api_key=, voice=, model_id=)
-      BidiNovaSonicModel                                          → BedrockNovaSonicModel(region=, voice=)
-      BidiGeminiLiveModel                                         → GoogleGeminiLiveModel(client_args=, voice=)
+    1.57 made `model_id` REQUIRED for every provider (1.56 filled in a default) and
+    OpenAI's `transcription_model_id` a required keyword (1.56 hard-wired gpt-4o-transcribe):
+      OpenAIRealtimeModel(model_id=, transcription_model_id=, api_key=, voice=)
+      BedrockNovaSonicModel(model_id=, region=, voice=)
+      GoogleGeminiLiveModel(model_id=, client_args=, voice=)
+    VOICE_MODEL overrides the model id; VOICE_TRANSCRIPTION_MODEL the OpenAI transcriber
+    ("off" disables user transcription).
     """
-    provider = provider.lower()
-    v = voice or _DEFAULT_VOICES.get(provider)
+    key = bidi.canonical_provider(provider)   # ValueError: unknown voice provider
+    cls = bidi.model_class(key)
+    v = voice or _DEFAULT_VOICES.get(key)
+    kwargs: dict = {"model_id": os.getenv("VOICE_MODEL") or bidi.DEFAULT_MODEL_IDS[key]}
+    if v:
+        kwargs["voice"] = v
 
-    if provider in ("nova_sonic", "novasonic", "nova"):
-        from strands.experimental.bidi.models.bedrock import BedrockNovaSonicModel
-        kwargs = {"region": os.getenv("AWS_REGION", "us-east-1")}
-        if v:
-            kwargs["voice"] = v
-        return BedrockNovaSonicModel(**kwargs)
+    if key == "nova_sonic":
+        kwargs["region"] = os.getenv("AWS_REGION", "us-east-1")
+        return cls(**kwargs)
 
-    if provider in ("openai", "openai_realtime"):
-        from strands.experimental.bidi.models.openai import OpenAIRealtimeModel
-        kwargs = {}
-        if v:
-            kwargs["voice"] = v
-        if os.getenv("VOICE_MODEL"):
-            kwargs["model_id"] = os.getenv("VOICE_MODEL")
+    if key == "openai":
+        transcriber = os.getenv("VOICE_TRANSCRIPTION_MODEL", bidi.DEFAULT_OPENAI_TRANSCRIPTION_MODEL)
+        kwargs["transcription_model_id"] = None if transcriber.lower() in ("", "off", "none") else transcriber
         if os.getenv("OPENAI_API_KEY"):
             kwargs["api_key"] = os.getenv("OPENAI_API_KEY")
-        return OpenAIRealtimeModel(**kwargs)
+        return cls(**kwargs)
 
-    if provider in ("gemini", "gemini_live"):
-        from strands.experimental.bidi.models.google import GoogleGeminiLiveModel
-        kwargs = {}
-        if v:
-            kwargs["voice"] = v
-        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-        if api_key:
-            kwargs["client_args"] = {"api_key": api_key}
-        return GoogleGeminiLiveModel(**kwargs)
-
-    raise ValueError(f"unknown voice provider: {provider}")
+    # gemini
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if api_key:
+        kwargs["client_args"] = {"api_key": api_key}
+    return cls(**kwargs)
 
 
 
 def _audio_cfg(model, direction: str) -> dict:
-    """{'sample_rate','channels','format'} for 'input'|'output' (strands >= 1.56 get_audio_config())."""
+    """{'sample_rate','channels','format'} for 'input'|'output' (model.get_audio_config())."""
     return dict(model.get_audio_config()[direction])
 
 
 # Rover audio backend: mic IN (poll /rover-mic) + speaker OUT (push PCM)
-# Mirrors the BidiInput / BidiOutput protocol used by BidiAudioIO, but the
+# Mirrors the InputStream / OutputStream protocol used by AudioIO, but the
 # "device" is the rover itself, bridged through the Earth Rovers SDK.
 class _RefBuffer:
     """Shared far-end (speaker) reference ring for echo cancellation.
@@ -271,7 +267,7 @@ class _SpeakGate:
 
 
 class _RoverAudioInput:
-    """BidiInput: rover-mic PCM16 → pywebrtc AEC/NS/AGC → model.
+    """InputStream: rover-mic PCM16 → pywebrtc AEC/NS/AGC → model.
 
     Pulls the rover's microphone (over the SDK), runs each chunk through the
     WebRTC AudioProcessor (echo cancellation referenced against what we sent
@@ -350,18 +346,14 @@ class _RoverAudioInput:
             pass
 
     async def __call__(self):
-        from strands.experimental.bidi.types.events import BidiAudioInputEvent
+        # 1.57: an input stream returns AudioDelta(format, source={"bytes"}); the rate and
+        # channel count are the model's own input config (we asked the rover mic for that rate).
         data = await self._queue.get()
-        return BidiAudioInputEvent(
-            audio=base64.b64encode(data).decode("utf-8"),
-            channels=self._channels,
-            format=self._format,
-            sample_rate=self._rate,
-        )
+        return bidi.AudioDelta(format=self._format, source={"bytes": data})
 
 
 class _RoverAudioOutput:
-    """BidiOutput: model PCM16 → rover speaker, also feeds AEC reference + speak gate."""
+    """OutputStream: model PCM16 → rover speaker, also feeds AEC reference + speak gate."""
 
     def __init__(self, sdk_url, ref, gate):
         self._sdk = sdk_url
@@ -386,10 +378,8 @@ class _RoverAudioOutput:
             pass
 
     async def __call__(self, event) -> None:
-        from strands.experimental.bidi.types.events import (
-            BidiAudioStreamEvent, BidiInterruptionEvent,
-        )
-        if isinstance(event, BidiAudioStreamEvent):
+        kind = bidi.event_type(event)
+        if kind == bidi.EVENTS.AUDIO_DELTA:          # was BidiAudioStreamEvent; "audio" = base64 PCM16
             pcm = np.frombuffer(base64.b64decode(event["audio"]), dtype=np.int16)
             # close the mic gate for the duration of this chunk (+tail)
             self._gate.mark_speaking(len(pcm) / float(self._rate))
@@ -400,7 +390,7 @@ class _RoverAudioOutput:
             )
             # 2) feed the SAME audio as the AEC far-end reference (noise/residual)
             self._ref.put(pcm)
-        elif isinstance(event, BidiInterruptionEvent):
+        elif kind == bidi.EVENTS.BARGE_IN:           # was BidiInterruptionEvent
             self._ref.clear()
             self._gate.reset()
             try:
@@ -415,11 +405,11 @@ class _RoverAudioOutput:
 # ─────────────────────────────────────────────────────────────────────────────
 # Briefing input: cross-process text channel. Other daemons (thinker_loop,
 # telegram_listener, agent.py) push one-liners into the voice_bridge SQLite
-# queue; this BidiInput polls them and emits BidiTextInputEvent so Scout hears
+# queue; this InputStream polls them and returns a TextBlock so Scout hears
 # about them in real time and can react (usually with MOTION, per persona).
 # ─────────────────────────────────────────────────────────────────────────────
 class _BriefingInput:
-    """Pulls briefings from voice_bridge SQLite queue → BidiTextInputEvent.
+    """Pulls briefings from voice_bridge SQLite queue → TextBlock (a user turn).
 
     DEBOUNCED + RESPONSE-GATED. Other daemons can push briefings at any rate,
     but we must NOT inject one while the realtime model is mid-response, or
@@ -432,9 +422,10 @@ class _BriefingInput:
         arrived for DEBOUNCE_SECONDS (coalesce a burst into one briefing),
         but cap the wait at MAX_HOLD_SECONDS so nothing is starved
       • URGENT (importance>=2) bypasses debounce → flush ASAP
-      • GATE: before emitting, wait until the model is idle
-        (model._active_response is False, tracked by _voice_patch), so the
-        briefing never collides with an in-flight response
+      • GATE: before emitting, wait until the model is idle (no active
+        response in the OpenAI model's own _SessionState; 1.57 tracks this
+        natively, _voice_patch no longer does), so the briefing never
+        collides with an in-flight response
     """
 
     POLL_SECONDS = 2.0
@@ -469,7 +460,17 @@ class _BriefingInput:
         pass
 
     def _model_busy(self) -> bool:
-        return bool(getattr(self._model, "_active_response", False))
+        """True while the model has a response in flight.
+
+        OpenAIRealtimeModel (1.57.1) keeps `_session_state.active_responses` (set of
+        response ids) and `response_requested` (a response.create is on the wire). Models
+        without that state (Nova, Gemini) are never reported busy: 1.57 coalesces
+        response requests natively, so a collision is no longer fatal.
+        """
+        state = getattr(self._model, "_session_state", None)
+        if state is None:
+            return False
+        return bool(getattr(state, "active_responses", ())) or bool(getattr(state, "response_requested", False))
 
     async def _wait_until_idle(self) -> None:
         """Block until the model finishes its current response (bounded)."""
@@ -496,7 +497,6 @@ class _BriefingInput:
         return out
 
     async def __call__(self):
-        from strands.experimental.bidi.types.events import BidiTextInputEvent
         from tools.voice_bridge import pop_pending
 
         while True:
@@ -533,7 +533,7 @@ class _BriefingInput:
             self._buf = []
             briefing = "[BRIEFING] " + " | ".join(lines)
             print(f"🌉 → voice ({len(lines)} coalesced): {briefing[:160]}")
-            return BidiTextInputEvent(text=briefing, role="user")
+            return bidi.TextBlock(text=briefing)   # a user turn; the model answers it
 
 
 class RoverAudioIO:
@@ -576,24 +576,20 @@ def build_voice_agent(
     """Build (BidiAgent, audio_io) wired with the full rover toolset.
 
     Args:
-        audio: "laptop" → use local mic/speakers (BidiAudioIO).
+        audio: "laptop" → use local mic/speakers (strands AudioIO, needs PyAudio).
                "rover"  → use the rover's onboard mic + speaker (RoverAudioIO).
     """
-    from strands.experimental.bidi import BidiAgent
-    from strands.experimental.bidi.tools import stop_conversation
-
     model = _build_bidi_model(provider, voice)
     from tools import tiny_mcp  # fleet bridge — voice is OPT-IN (TINY_MCP_PERSONAS must list voice)
-    agent = BidiAgent(
+    agent = bidi.BidiAgent(
         model=model,
-        tools=[*ROVER_ALL_TOOLS, stop_conversation, *tiny_mcp.get_tools("voice")],
+        tools=[*ROVER_ALL_TOOLS, bidi.stop_conversation, *tiny_mcp.get_tools("voice")],
         system_prompt=VOICE_PROMPT + tiny_mcp.prompt_block("voice"),
     )
     if audio == "rover":
         audio_io = RoverAudioIO()
     else:
-        from strands.experimental.bidi.io import BidiAudioIO
-        audio_io = BidiAudioIO()
+        audio_io = bidi.audio_io_class()()
     return agent, audio_io
 
 
